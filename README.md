@@ -1,1 +1,1 @@
-# fallout4chatmod
+# Chat mod for Fallout 4
