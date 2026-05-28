@@ -42,6 +42,8 @@ namespace FalloutChat
 		bool g_chatOpen = false;
 		HWND g_hwnd = nullptr;
 		ID3D11RenderTargetView* g_pRenderTargetView = nullptr;
+		ID3D11Device* g_pDevice = nullptr;
+		ID3D11DeviceContext* g_pDeviceContext = nullptr;
 
 		std::vector<ChatMessage> g_chatHistory;
 		char g_inputBuffer[256] = "";
@@ -494,9 +496,17 @@ namespace FalloutChat
 		HRESULT APIENTRY Hook_Present(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags)
 		{
 			if (!g_initialized) {
-				auto rendererData = RE::BSGraphics::RendererData::GetSingleton();
-				if (rendererData && rendererData->device && rendererData->context) {
-					g_hwnd = (HWND)rendererData->renderWindow[0].hwnd;
+				ID3D11Device* device = nullptr;
+				if (SUCCEEDED(pSwapChain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&device)))) {
+					ID3D11DeviceContext* context = nullptr;
+					device->GetImmediateContext(&context);
+
+					DXGI_SWAP_CHAIN_DESC desc = {};
+					pSwapChain->GetDesc(&desc);
+					g_hwnd = desc.OutputWindow;
+
+					g_pDevice = device;
+					g_pDeviceContext = context;
 
 					IMGUI_CHECKVERSION();
 					ImGui::CreateContext();
@@ -521,7 +531,7 @@ namespace FalloutChat
 					ApplyFalloutTheme();
 
 					ImGui_ImplWin32_Init(g_hwnd);
-					ImGui_ImplDX11_Init(rendererData->device, rendererData->context);
+					ImGui_ImplDX11_Init(g_pDevice, g_pDeviceContext);
 
 					oWndProc = (WNDPROC)SetWindowLongPtr(g_hwnd, GWLP_WNDPROC, (LONG_PTR)WndProc_Hook);
 
@@ -530,10 +540,9 @@ namespace FalloutChat
 			}
 
 			if (g_initialized && !g_pRenderTargetView) {
-				auto rendererData = RE::BSGraphics::RendererData::GetSingleton();
 				ID3D11Texture2D* pBackBuffer = nullptr;
 				if (SUCCEEDED(pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer)))) {
-					rendererData->device->CreateRenderTargetView(pBackBuffer, nullptr, &g_pRenderTargetView);
+					g_pDevice->CreateRenderTargetView(pBackBuffer, nullptr, &g_pRenderTargetView);
 					pBackBuffer->Release();
 				}
 			}
@@ -554,7 +563,7 @@ namespace FalloutChat
 				{
 					std::lock_guard<std::mutex> lock(s_imageMutex);
 					if (!s_pendingUploads.empty()) {
-						auto* dev = RE::BSGraphics::RendererData::GetSingleton()->device;
+						auto* dev = g_pDevice;
 						for (auto& up : s_pendingUploads) {
 							D3D11_TEXTURE2D_DESC td = {};
 							td.Width            = static_cast<UINT>(up.width);
@@ -880,8 +889,7 @@ namespace FalloutChat
 				ImGui::EndFrame();
 				ImGui::Render();
 
-				auto rendererData = RE::BSGraphics::RendererData::GetSingleton();
-				rendererData->context->OMSetRenderTargets(1, &g_pRenderTargetView, nullptr);
+				g_pDeviceContext->OMSetRenderTargets(1, &g_pRenderTargetView, nullptr);
 				ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 			}
 
@@ -900,27 +908,49 @@ namespace FalloutChat
 
 		void InstallHooks()
 		{
+			// Create a temporary D3D11 device + swap chain to read the IDXGISwapChain vtable,
+			// then release both immediately. This avoids depending on BSGraphics::RendererData
+			// which was removed in the NG CommonLibF4.
+			DXGI_SWAP_CHAIN_DESC sd = {};
+			sd.BufferCount = 1;
+			sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+			sd.OutputWindow = GetForegroundWindow();
+			sd.SampleDesc.Count = 1;
+			sd.Windowed = TRUE;
+			sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
-			auto rendererData = RE::BSGraphics::RendererData::GetSingleton();
-			if (!rendererData || !rendererData->renderWindow[0].swapChain) {
-				logger::critical("Failed to retrieve DXGI SwapChain from BSGraphics!");
+			ID3D11Device* dummyDevice = nullptr;
+			IDXGISwapChain* dummySwapChain = nullptr;
+			HRESULT hr = D3D11CreateDeviceAndSwapChain(
+				nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0,
+				nullptr, 0, D3D11_SDK_VERSION,
+				&sd, &dummySwapChain, &dummyDevice, nullptr, nullptr);
+
+			if (FAILED(hr) || !dummySwapChain) {
+				logger::critical("Failed to create dummy D3D11 device for vtable (hr={:08X})", static_cast<uint32_t>(hr));
+				if (dummyDevice) dummyDevice->Release();
 				return;
 			}
 
-			IDXGISwapChain* swapChain = rendererData->renderWindow[0].swapChain;
-			void** vtable = *reinterpret_cast<void***>(swapChain);
+			void** vtable = *reinterpret_cast<void***>(dummySwapChain);
+			// Copy the vtable pointers we need before releasing the dummy objects
+			void* presentVtbl = vtable[8];
+			void* resizeVtbl  = vtable[13];
+			dummySwapChain->Release();
+			dummyDevice->Release();
 
 			if (MH_Initialize() != MH_OK) {
 				logger::critical("Failed to initialize MinHook!");
 				return;
 			}
 
-			if (MH_CreateHook(vtable[8], &Hook_Present, reinterpret_cast<LPVOID*>(&oPresent)) != MH_OK) {
+			if (MH_CreateHook(presentVtbl, &Hook_Present, reinterpret_cast<LPVOID*>(&oPresent)) != MH_OK) {
 				logger::critical("Failed to hook IDXGISwapChain::Present");
 				return;
 			}
 
-			if (MH_CreateHook(vtable[13], &Hook_ResizeBuffers, reinterpret_cast<LPVOID*>(&oResizeBuffers)) != MH_OK) {
+			if (MH_CreateHook(resizeVtbl, &Hook_ResizeBuffers, reinterpret_cast<LPVOID*>(&oResizeBuffers)) != MH_OK) {
 				logger::critical("Failed to hook IDXGISwapChain::ResizeBuffers");
 				return;
 			}
@@ -943,6 +973,16 @@ namespace FalloutChat
 			if (g_pRenderTargetView) {
 				g_pRenderTargetView->Release();
 				g_pRenderTargetView = nullptr;
+			}
+
+			if (g_pDeviceContext) {
+				g_pDeviceContext->Release();
+				g_pDeviceContext = nullptr;
+			}
+
+			if (g_pDevice) {
+				g_pDevice->Release();
+				g_pDevice = nullptr;
 			}
 
 			ImGui_ImplDX11_Shutdown();
