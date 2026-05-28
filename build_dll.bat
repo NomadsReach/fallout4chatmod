@@ -4,7 +4,7 @@ setlocal
 set MSBUILD="C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe"
 set VCPKG_ROOT=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg
 set VCTOOLS_VERSION=14.44.35207
-set DEPLOY_DIR=E:\Modlists\Fallen World Alpha 2\mods\FalloutChat\F4SE\Plugins
+set DEPLOY_DIR=E:\Modlists\Fallen World Alpha 2 NG\mods\FalloutChat\F4SE\Plugins
 
 if not exist "build" (
     echo Configuring CMake...

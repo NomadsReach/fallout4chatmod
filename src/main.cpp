@@ -120,7 +120,7 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Query(const F4SE::QueryInterface * 
 	}
 
 	const auto ver = a_f4se->RuntimeVersion();
-	if (ver < F4SE::RUNTIME_1_10_162) {
+	if (ver < F4SE::RUNTIME_1_10_984) {
 		logger::critical("unsupported runtime v{}", ver.string());
 		return false;
 	}
