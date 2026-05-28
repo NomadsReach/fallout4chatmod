@@ -385,7 +385,10 @@ namespace FalloutChat
 			}
 
 			if (auto controlMap = RE::ControlMap::GetSingleton()) {
-				controlMap->SetTextEntryMode(g_chatOpen);
+				if (g_chatOpen)
+					++controlMap->byTextEntryCount;
+				else if (controlMap->byTextEntryCount > 0)
+					--controlMap->byTextEntryCount;
 				controlMap->ignoreKeyboardMouse = g_chatOpen;
 			}
 		}
