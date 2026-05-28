@@ -1,0 +1,29 @@
+{
+  "name": "fallout-chat-f4se",
+  "version-string": "1.0.0",
+  "description": "An F4SE project that adds a real-time multiplayer text chat overlay to Fallout 4",
+  "homepage": "https://github.com/GELUXRUM/FalloutChat",
+  "license": "MIT",
+  "dependencies": [
+    "args",
+    "boost-stl-interfaces",
+    "fmt",
+    "frozen",
+    "nowide",
+    "robin-hood-hashing",
+    "rsm-mmio",
+    "spdlog",
+    "srell",
+    "xbyak",
+    "minhook",
+    {
+      "name": "imgui",
+      "features": [
+        "dx11-binding",
+        "win32-binding"
+      ]
+    },
+    "ixwebsocket"
+  ],
+  "builtin-baseline": "8528134bac3d39db8d36f4097755a97a1394e4dc"
+}

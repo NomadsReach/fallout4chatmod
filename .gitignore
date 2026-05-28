@@ -1,0 +1,9 @@
+build/
+cmake-build-debug/
+*.user
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
