@@ -27,6 +27,8 @@ extern bool g_chatEnabled;
 extern void SaveChatEnabled(bool enabled);
 extern bool g_tutorialSeen;
 extern void SaveTutorialSeen();
+extern bool g_introDismissed;
+extern void SaveIntroDismissed();
 
 namespace FalloutChat
 {
@@ -744,11 +746,13 @@ namespace FalloutChat
 					ImGui::Spacing(); ImGui::Spacing();
 					if (ImGui::Button("I Agree & Continue", ImVec2(200, 30))) {
 						::SavePrivacyPolicy();
+						::SaveIntroDismissed();
 						if (!::g_tutorialSeen)
 							s_tutorialStep = 1;
 					}
 					ImGui::SameLine();
 					if (ImGui::Button("Decline & Close", ImVec2(200, 30))) {
+						::SaveIntroDismissed();
 						ToggleChat(true, false);
 					}
 					ImGui::End();
@@ -823,7 +827,7 @@ namespace FalloutChat
 							ImGui::OpenPopup("##ChatSettings");
 							s_tutorialForceSettings = false;
 						}
-						if (ImGui::BeginPopup("##ChatSettings")) {
+						if (ImGui::BeginPopup("##ChatSettings", (s_tutorialStep == 3) ? ImGuiWindowFlags_NoMove : 0)) {
 							s_settingsPopupRectMin = ImGui::GetWindowPos();
 							s_settingsPopupRectMax = ImVec2(s_settingsPopupRectMin.x + ImGui::GetWindowWidth(), s_settingsPopupRectMin.y + ImGui::GetWindowHeight());
 							ImGui::BeginDisabled(s_tutorialStep == 3);
@@ -1027,6 +1031,27 @@ namespace FalloutChat
 					dl->AddRectFilled(rectMin, rectMax, bgColor, 6.0f);
 					dl->AddRect(rectMin, rectMax, glowColor, 6.0f, 0, 1.5f);
 					dl->AddText(badgePos, glowColor, badgeText);
+				}
+
+				// ── Intro hint ───────────────────────────────────────────────────────
+				if (!::g_introDismissed) {
+					ImGuiIO& hintIO = ImGui::GetIO();
+					ImVec2 hintSize(220.0f, 52.0f);
+					ImVec2 hintPos(
+						hintIO.DisplaySize.x - hintSize.x - 16.0f,
+						hintIO.DisplaySize.y - hintSize.y - 16.0f
+					);
+					ImGui::SetNextWindowPos(hintPos, ImGuiCond_Always);
+					ImGui::SetNextWindowSize(hintSize, ImGuiCond_Always);
+					ImGui::SetNextWindowBgAlpha(0.92f);
+					ImGui::Begin("##IntroHint", nullptr,
+						ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+						ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
+						ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav |
+						ImGuiWindowFlags_NoInputs);
+					ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.6f, 1.0f), "FALLOUT CHAT INSTALLED");
+					ImGui::TextDisabled("Press F11 to open");
+					ImGui::End();
 				}
 
 				ImGui::EndFrame();

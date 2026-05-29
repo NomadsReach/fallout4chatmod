@@ -10,6 +10,7 @@ bool g_privacyAccepted = false;
 uint64_t g_steamID = 0;
 bool g_chatEnabled = true;
 bool g_tutorialSeen = false;
+bool g_introDismissed = false;
 
 uint64_t FetchSteamID()
 {
@@ -78,6 +79,15 @@ void SaveTutorialSeen()
 	ini.Reset();
 }
 
+void SaveIntroDismissed()
+{
+	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
+	ini.SetBoolValue("General", "intro_dismissed", true);
+	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
+	g_introDismissed = true;
+	ini.Reset();
+}
+
 void LoadConfigs()
 {
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
@@ -88,9 +98,11 @@ void LoadConfigs()
 	if (username.empty())
 		username = "Player";
 
-	g_privacyAccepted = ini.GetBoolValue("General", "privacy_accepted", false);
-	g_chatEnabled = ini.GetBoolValue("General", "chat_enabled", true);
-	g_tutorialSeen = ini.GetBoolValue("General", "tutorial_seen", false);
+	bool privacyAlreadyAccepted = ini.GetBoolValue("General", "privacy_accepted", false);
+	g_privacyAccepted  = privacyAlreadyAccepted;
+	g_chatEnabled      = ini.GetBoolValue("General", "chat_enabled", true);
+	g_tutorialSeen     = ini.GetBoolValue("General", "tutorial_seen", false);
+	g_introDismissed   = ini.GetBoolValue("General", "intro_dismissed", privacyAlreadyAccepted);
 	ini.Reset();
 }
 
