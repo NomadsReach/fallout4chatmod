@@ -134,6 +134,13 @@ namespace FalloutChat
 		_connected = false;
 	}
 
+	void ChatClient::SendRename(const std::string& name)
+	{
+		std::lock_guard<std::mutex> lock(_mutex);
+		if (_webSocket && _connected)
+			_webSocket->send("[RENAME]" + std::to_string(_steamID) + "|" + name);
+	}
+
 	void ChatClient::Send(const std::string& text, const std::string& location)
 	{
 		std::lock_guard<std::mutex> lock(_mutex);

@@ -25,6 +25,7 @@ namespace FalloutChat
 		void Shutdown();
 
 		void Send(const std::string& text, const std::string& location = "");
+		void SendRename(const std::string& name);
 		void SetUsername(const std::string& name);
 		std::string GetUsername() const;
 		void SetSteamID(uint64_t id);

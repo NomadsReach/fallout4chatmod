@@ -139,6 +139,9 @@ target_link_libraries(
 		Bcrypt.lib
 		dxgi.lib
 		d3d11.lib
+		winhttp.lib
+		windowscodecs.lib
+		ole32.lib
 )
 
 target_precompile_headers(

@@ -7,6 +7,11 @@
 #include <iomanip>
 #include <set>
 #include <cmath>
+#include <thread>
+#include <mutex>
+#include <unordered_map>
+#include <winhttp.h>
+#include <wincodec.h>
 #include "RE/Bethesda/MenuCursor.h"
 #include "icons/IconsFontAwesome6.h"
 #include "icons/IconsFontAwesome6Brands.h"
@@ -41,6 +46,14 @@ namespace FalloutChat
 
 		static std::set<std::string> s_mutedPlayers;
 		static int s_unreadCount = 0;
+
+		struct CachedImage { ID3D11ShaderResourceView* srv = nullptr; int width = 0, height = 0; };
+		struct PendingUpload { std::string url; std::vector<uint8_t> pixels; int width = 0, height = 0; };
+
+		static std::unordered_map<std::string, CachedImage> s_imageCache;
+		static std::set<std::string> s_downloading;
+		static std::mutex s_imageMutex;
+		static std::vector<PendingUpload> s_pendingUploads;
 
 		static const ImVec4 SENDER_PALETTE[] = {
 			ImVec4(0.2f, 0.8f, 1.0f, 1.0f),
@@ -99,6 +112,176 @@ namespace FalloutChat
 			return "";
 		}
 
+		static std::string ExtractImageUrl(const std::string& text)
+		{
+			auto pos = text.find("https://");
+			if (pos == std::string::npos) return {};
+			auto endPos = text.find_first_of(" \t\n\r", pos);
+			std::string url = (endPos == std::string::npos) ? text.substr(pos) : text.substr(pos, endPos - pos);
+
+			static const char* kExts[] = { ".gif", ".png", ".jpg", ".jpeg", ".webp", nullptr };
+			for (int i = 0; kExts[i]; ++i)
+				if (url.find(kExts[i]) != std::string::npos) return url;
+
+			if (url.find("tenor.com/view/") != std::string::npos ||
+				url.find("giphy.com/gifs/") != std::string::npos ||
+				url.find("giphy.com/media/") != std::string::npos)
+				return url;
+
+			return {};
+		}
+
+		static std::vector<uint8_t> FetchUrl(const std::string& url, size_t limit = 8 * 1024 * 1024)
+		{
+			std::wstring wurl(url.begin(), url.end());
+			URL_COMPONENTSW uc = {};
+			uc.dwStructSize = sizeof(uc);
+			wchar_t host[256] = {}, path[2048] = {};
+			uc.lpszHostName = host; uc.dwHostNameLength = 256;
+			uc.lpszUrlPath = path; uc.dwUrlPathLength = 2048;
+			if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &uc)) {
+				logger::warn("FetchUrl: WinHttpCrackUrl failed for {}", url);
+				return {};
+			}
+
+			HINTERNET hSess = WinHttpOpen(
+				L"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0",
+				WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, nullptr, nullptr, 0);
+			if (!hSess) { logger::warn("FetchUrl: WinHttpOpen failed"); return {}; }
+
+			HINTERNET hConn = WinHttpConnect(hSess, host, uc.nPort, 0);
+			if (!hConn) { WinHttpCloseHandle(hSess); logger::warn("FetchUrl: WinHttpConnect failed"); return {}; }
+
+			DWORD flags = (url.rfind("https://", 0) == 0) ? WINHTTP_FLAG_SECURE : 0;
+			HINTERNET hReq = WinHttpOpenRequest(hConn, L"GET", path, nullptr, nullptr, nullptr, flags);
+			if (hReq) {
+				WinHttpAddRequestHeaders(hReq,
+					L"Accept: text/html,image/gif,image/*,*/*\r\nAccept-Language: en-US,en;q=0.9",
+					static_cast<DWORD>(-1), WINHTTP_ADDREQ_FLAG_ADD);
+			}
+			if (!hReq || !WinHttpSendRequest(hReq, nullptr, 0, nullptr, 0, 0, 0) || !WinHttpReceiveResponse(hReq, nullptr)) {
+				if (hReq) WinHttpCloseHandle(hReq);
+				WinHttpCloseHandle(hConn); WinHttpCloseHandle(hSess);
+				logger::warn("FetchUrl: request failed for {}", url);
+				return {};
+			}
+
+			DWORD statusCode = 0;
+			DWORD statusSize = sizeof(statusCode);
+			WinHttpQueryHeaders(hReq, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+				nullptr, &statusCode, &statusSize, nullptr);
+			logger::warn("FetchUrl: {} -> HTTP {}", url, statusCode);
+
+			std::vector<uint8_t> bytes;
+			DWORD read = 0;
+			uint8_t buf[8192];
+			while (bytes.size() < limit && WinHttpReadData(hReq, buf, sizeof(buf), &read) && read > 0)
+				bytes.insert(bytes.end(), buf, buf + read);
+			WinHttpCloseHandle(hReq); WinHttpCloseHandle(hConn); WinHttpCloseHandle(hSess);
+			logger::warn("FetchUrl: downloaded {} bytes from {}", bytes.size(), url);
+			return bytes;
+		}
+
+		static std::string ExtractOgImage(const std::vector<uint8_t>& htmlBytes)
+		{
+			std::string html(htmlBytes.begin(), htmlBytes.end());
+			// Match both attribute orderings of the og:image meta tag
+			for (const auto& needle : { std::string("property=\"og:image\" content=\""), std::string("name=\"og:image\" content=\"") }) {
+				auto pos = html.find(needle);
+				if (pos != std::string::npos) {
+					pos += needle.size();
+					auto end = html.find('"', pos);
+					if (end != std::string::npos) return html.substr(pos, end - pos);
+				}
+			}
+			// Try reversed attribute order: content="..." property="og:image"
+			size_t pos = 0;
+			while ((pos = html.find("og:image", pos)) != std::string::npos) {
+				auto tagStart = html.rfind('<', pos);
+				if (tagStart != std::string::npos) {
+					auto tagEnd = html.find('>', pos);
+					std::string tag = html.substr(tagStart, tagEnd != std::string::npos ? tagEnd - tagStart : 200);
+					auto cpos = tag.find("content=\"");
+					if (cpos != std::string::npos) {
+						cpos += 9;
+						auto cend = tag.find('"', cpos);
+						if (cend != std::string::npos) return tag.substr(cpos, cend - cpos);
+					}
+				}
+				pos += 8;
+			}
+			return {};
+		}
+
+		static bool DecodeAndQueue(const std::string& cacheKey, std::vector<uint8_t>& bytes)
+		{
+			IWICImagingFactory* factory = nullptr;
+			CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory));
+			if (!factory) return false;
+
+			IWICStream* stream = nullptr;
+			factory->CreateStream(&stream);
+			stream->InitializeFromMemory(bytes.data(), static_cast<DWORD>(bytes.size()));
+
+			IWICBitmapDecoder* decoder = nullptr;
+			factory->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnLoad, &decoder);
+			stream->Release();
+			if (!decoder) { factory->Release(); return false; }
+
+			IWICBitmapFrameDecode* frame = nullptr;
+			decoder->GetFrame(0, &frame);
+			decoder->Release();
+			if (!frame) { factory->Release(); return false; }
+
+			UINT w = 0, h = 0;
+			frame->GetSize(&w, &h);
+			if (w == 0 || h == 0 || w > 4096 || h > 4096) {
+				frame->Release(); factory->Release(); return false;
+			}
+
+			IWICFormatConverter* conv = nullptr;
+			factory->CreateFormatConverter(&conv);
+			conv->Initialize(frame, GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeMedianCut);
+			frame->Release();
+
+			std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
+			conv->CopyPixels(nullptr, w * 4, static_cast<UINT>(pixels.size()), pixels.data());
+			conv->Release();
+			factory->Release();
+
+			std::lock_guard<std::mutex> lock(s_imageMutex);
+			s_pendingUploads.push_back({ cacheKey, std::move(pixels), static_cast<int>(w), static_cast<int>(h) });
+			return true;
+		}
+
+		static void DownloadAndDecode(std::string url)
+		{
+			CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
+			auto bytes = FetchUrl(url);
+			if (bytes.empty()) { CoUninitialize(); return; }
+
+			// If it's an HTML page (Tenor/Giphy), resolve to the direct image via og:image
+			std::string head(bytes.begin(), bytes.begin() + (bytes.size() < 64 ? bytes.size() : 64));
+			if (head.find("<!") != std::string::npos || head.find("<h") != std::string::npos) {
+				std::string directUrl = ExtractOgImage(bytes);
+				if (directUrl.empty()) { CoUninitialize(); return; }
+				bytes = FetchUrl(directUrl);
+				if (bytes.empty()) { CoUninitialize(); return; }
+			}
+
+			DecodeAndQueue(url, bytes);
+			CoUninitialize();
+		}
+
+		static void StartImageDownload(const std::string& url)
+		{
+			std::lock_guard<std::mutex> lock(s_imageMutex);
+			if (s_imageCache.count(url) || s_downloading.count(url)) return;
+			s_downloading.insert(url);
+			std::thread(DownloadAndDecode, url).detach();
+		}
+
 		void HandleSendInput()
 		{
 			std::string text(g_inputBuffer);
@@ -130,6 +313,7 @@ namespace FalloutChat
 				while (!newName.empty() && newName.back() == ' ') newName.pop_back();
 				if (!newName.empty()) {
 					ChatClient::GetSingleton().SetUsername(newName);
+					ChatClient::GetSingleton().SendRename(newName);
 					::SaveUsername(newName);
 					sysMsg("Username changed to: " + newName);
 				}
@@ -197,6 +381,11 @@ namespace FalloutChat
 		{
 			if (uMsg == WM_KEYDOWN && wParam == VK_F11) {
 				ToggleChat(true, !g_chatOpen);
+				return 1;
+			}
+
+			if (uMsg == WM_KEYDOWN && wParam == VK_ESCAPE && g_chatOpen) {
+				ToggleChat(true, false);
 				return 1;
 			}
 
@@ -346,6 +535,39 @@ namespace FalloutChat
 						s_unreadCount += static_cast<int>(newMsgs.size());
 				}
 
+				{
+					std::lock_guard<std::mutex> lock(s_imageMutex);
+					if (!s_pendingUploads.empty()) {
+						auto* dev = RE::BSGraphics::RendererData::GetSingleton()->device;
+						for (auto& up : s_pendingUploads) {
+							D3D11_TEXTURE2D_DESC td = {};
+							td.Width            = static_cast<UINT>(up.width);
+							td.Height           = static_cast<UINT>(up.height);
+							td.MipLevels        = 1;
+							td.ArraySize        = 1;
+							td.Format           = DXGI_FORMAT_R8G8B8A8_UNORM;
+							td.SampleDesc.Count = 1;
+							td.Usage            = D3D11_USAGE_DEFAULT;
+							td.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+							D3D11_SUBRESOURCE_DATA sd = {};
+							sd.pSysMem      = up.pixels.data();
+							sd.SysMemPitch  = static_cast<UINT>(up.width) * 4;
+							ID3D11Texture2D* tex = nullptr;
+							if (SUCCEEDED(dev->CreateTexture2D(&td, &sd, &tex))) {
+								D3D11_SHADER_RESOURCE_VIEW_DESC svd = {};
+								svd.Format                    = DXGI_FORMAT_R8G8B8A8_UNORM;
+								svd.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
+								svd.Texture2D.MipLevels       = 1;
+								ID3D11ShaderResourceView* srv = nullptr;
+								dev->CreateShaderResourceView(tex, &svd, &srv);
+								tex->Release();
+								if (srv) s_imageCache[up.url] = { srv, up.width, up.height };
+							}
+						}
+						s_pendingUploads.clear();
+					}
+				}
+
 				ImGui_ImplDX11_NewFrame();
 				ImGui_ImplWin32_NewFrame();
 				ImGui::NewFrame();
@@ -355,6 +577,9 @@ namespace FalloutChat
 						menuCursor->ClearConstraints();
 					}
 					::ClipCursor(nullptr);
+					if (auto controlMap = RE::ControlMap::GetSingleton()) {
+						controlMap->ignoreKeyboardMouse = true;
+					}
 				}
 
 				if (g_chatOpen && !::g_privacyAccepted) {
@@ -512,6 +737,24 @@ namespace FalloutChat
 							ImGui::TextColored(SenderColor(msg.sender), "%s:", msg.sender.c_str());
 							ImGui::SameLine();
 							ImGui::TextWrapped("%s", msg.text.c_str());
+						}
+
+						{
+							std::string imgUrl = ExtractImageUrl(msg.text);
+							if (!imgUrl.empty()) {
+								StartImageDownload(imgUrl);
+								std::lock_guard<std::mutex> lock(s_imageMutex);
+								auto it = s_imageCache.find(imgUrl);
+								if (it != s_imageCache.end() && it->second.srv) {
+									constexpr float kMaxW = 280.0f;
+									float rawW = static_cast<float>(it->second.width);
+									float dispW = rawW < kMaxW ? rawW : kMaxW;
+									float dispH = static_cast<float>(it->second.height) * (dispW / static_cast<float>(it->second.width));
+									ImGui::Image(reinterpret_cast<ImTextureID>(it->second.srv), ImVec2(dispW, dispH));
+								} else {
+									ImGui::TextDisabled("[loading...]");
+								}
+							}
 						}
 					}
 
