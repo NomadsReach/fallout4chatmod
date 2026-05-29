@@ -44,13 +44,8 @@
   body.chat-disabled.passive-mode .chat-container,
   body.modal-active .chat-container { display: none !important; }
 
-  /* Passive mode styling */
-  body.passive-mode .chat-container { background: transparent; border-color: transparent; pointer-events: none; }
-  body.passive-mode .chat-header { display: none; }
-  body.passive-mode .input-area { display: none; }
-  body.passive-mode .messages::-webkit-scrollbar { display: none; }
-  body.passive-mode .msg-row { opacity: 0; transition: opacity 2s ease-in 10s; }
-  body.passive-mode .msg-row.recent { opacity: 1; transition: none; }
+  /* Passive mode: hide container entirely — nothing visible until F11 is pressed */
+  body.passive-mode .chat-container { display: none; }
   
   /* Initial hidden state before setup is complete */
   body.chat-startup .chat-container { display: none; }
@@ -541,13 +536,17 @@
     try { localStorage.setItem('fc_opacity', val); } catch(e) {}
   }
 
-  function toggleChatEnabled() {
-    chatEnabled = !chatEnabled;
+  window.setChatEnabled = function(val) {
+    chatEnabled = val;
     var el = document.getElementById('chatEnabledToggle');
-    el.classList.toggle('on', chatEnabled);
+    if (el) el.classList.toggle('on', chatEnabled);
     if (!chatEnabled) document.body.classList.add('chat-disabled');
     else document.body.classList.remove('chat-disabled');
     console.log('settings: chat enabled = ' + chatEnabled);
+  };
+
+  function toggleChatEnabled() {
+    window.setChatEnabled(!chatEnabled);
     if (typeof window.SaveChatEnabled === 'function') window.SaveChatEnabled(chatEnabled ? 'true' : 'false');
     else console.warn('settings: SaveChatEnabled not available');
   }
@@ -556,7 +555,6 @@
   var g_introDismissed = true;
   var g_privacyAccepted = true;
   var g_tutorialSeen = true;
-  var hudTimer = null;
   var hudDisplayTimer = null;
 
   window.setupOnboarding = function(intro, priv, tut) {
@@ -564,24 +562,25 @@
     g_privacyAccepted = priv;
     g_tutorialSeen = tut;
     console.log('onboarding: intro=' + intro + ' priv=' + priv + ' tut=' + tut);
-    if (!g_introDismissed) {
-      // 5 minute interval
-      hudTimer = setInterval(showHudHint, 5 * 60 * 1000);
-      // Also show it immediately after a short delay so they know it's there
-      setTimeout(showHudHint, 5000);
-    } else {
+
+    if (g_introDismissed) {
       document.body.classList.remove('chat-startup');
     }
+
+    // Always show hint on every session load so player knows the hotkey
+    setTimeout(showHudHint, 3000);
   };
 
   function showHudHint() {
-    if (g_introDismissed || document.body.classList.contains('chat-active')) return;
+    if (!chatEnabled || document.body.classList.contains('chat-active')) return;
+    console.log('HUD: showing F11 reminder');
     var hud = document.getElementById('hudReminder');
     hud.classList.add('visible');
     clearTimeout(hudDisplayTimer);
     hudDisplayTimer = setTimeout(function() {
       hud.classList.remove('visible');
-    }, 15000);
+      console.log('HUD: reminder hidden');
+    }, 12000);
   }
 
   function acceptPrivacy() {
@@ -622,12 +621,10 @@
     document.body.classList.remove('passive-mode');
     document.body.classList.add('chat-active');
 
-    if (!g_introDismissed) {
-      g_introDismissed = true;
-      clearInterval(hudTimer);
-      clearTimeout(hudDisplayTimer);
-      document.getElementById('hudReminder').classList.remove('visible');
-    }
+    // Always dismiss the hint when chat opens
+    clearTimeout(hudDisplayTimer);
+    document.getElementById('hudReminder').classList.remove('visible');
+    if (!g_introDismissed) g_introDismissed = true;
 
     if (!g_privacyAccepted) {
       document.body.classList.add('modal-active');
@@ -703,10 +700,6 @@
                       + '<span class="msg-text">' + safeText + '</span>';
       }
       list.appendChild(row);
-
-      // Handle passive mode fading
-      row.classList.add('recent');
-      setTimeout(function() { row.classList.remove('recent'); }, 100);
 
       // Keep only the last 200 messages
       while (list.children.length > 200) {

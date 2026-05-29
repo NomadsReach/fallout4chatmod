@@ -7,6 +7,7 @@
 extern bool g_privacyAccepted;
 extern bool g_introDismissed;
 extern bool g_tutorialSeen;
+extern bool g_chatEnabled;
 extern int g_fontSize;
 extern int g_bgOpacity;
 extern void SavePrivacyPolicy();
@@ -174,16 +175,20 @@ namespace FalloutChat
 			// Push persisted appearance settings from INI (overrides localStorage defaults)
 			std::string appearanceJS =
 				"if(document.getElementById('fontSlider')){ document.getElementById('fontSlider').value=" + std::to_string(g_fontSize) + "; onFontSize(" + std::to_string(g_fontSize) + "); }"
-				"if(document.getElementById('opacitySlider')){ document.getElementById('opacitySlider').value=" + std::to_string(g_bgOpacity) + "; onOpacity(" + std::to_string(g_bgOpacity) + "); }";
+				"if(document.getElementById('opacitySlider')){ document.getElementById('opacitySlider').value=" + std::to_string(g_bgOpacity) + "; onOpacity(" + std::to_string(g_bgOpacity) + "); }"
+				"if(window.setChatEnabled) setChatEnabled(" + std::string(g_chatEnabled ? "true" : "false") + ");";
 			g_api->Invoke(view, appearanceJS.c_str());
 
 			logger::info("ChatUI: all JS listeners registered");
 
-			// Flush messages that arrived before the view was ready (e.g. server history)
-			if (auto* ti = F4SE::GetTaskInterface())
+			// Flush messages and online count that arrived before the view was ready
+			if (auto* ti = F4SE::GetTaskInterface()) {
 				ti->AddTask([]() { OnMessagesReceived(); });
-			else
+				int cachedCount = ChatClient::GetSingleton().GetOnlineCount();
+				ti->AddTask([cachedCount]() { UpdateOnlineCount(cachedCount); });
+			} else {
 				logger::warn("ChatUI: OnDomReady — task interface unavailable, queued messages may be lost");
+			}
 		}
 
 		void Initialize()
