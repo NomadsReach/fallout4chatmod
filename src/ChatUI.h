@@ -18,5 +18,8 @@ namespace FalloutChat
 
 		// Called by ChatClient when online count changes
 		void UpdateOnlineCount(int count);
+
+		// Called by ChatClient when connection state changes
+		void UpdateConnectionStatus(bool connected);
 	}
 }

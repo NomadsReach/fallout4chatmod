@@ -160,14 +160,20 @@ namespace FalloutChat
 			} else if (msg->type == ix::WebSocketMessageType::Open) {
 				_connected = true;
 				logger::info("ChatClient: connected to {}", _url);
+				if (auto* ti = F4SE::GetTaskInterface())
+					ti->AddTask([]() { ChatUI::UpdateConnectionStatus(true); });
 			} else if (msg->type == ix::WebSocketMessageType::Close) {
 				_connected = false;
 				_disconnectedAt = std::chrono::steady_clock::now();
 				logger::warn("ChatClient: disconnected (code={} reason='{}')", msg->closeInfo.code, msg->closeInfo.reason);
+				if (auto* ti = F4SE::GetTaskInterface())
+					ti->AddTask([]() { ChatUI::UpdateConnectionStatus(false); });
 			} else if (msg->type == ix::WebSocketMessageType::Error) {
 				_connected = false;
 				_disconnectedAt = std::chrono::steady_clock::now();
 				logger::error("ChatClient: websocket error — {}", msg->errorInfo.reason);
+				if (auto* ti = F4SE::GetTaskInterface())
+					ti->AddTask([]() { ChatUI::UpdateConnectionStatus(false); });
 			}
 		});
 

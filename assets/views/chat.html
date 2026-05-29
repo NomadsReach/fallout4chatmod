@@ -112,6 +112,27 @@
   .msg-row.system .msg-text   { color: #fcd34d; }
   .msg-row.emote  .msg-text   { color: #e9d5ff; font-style: italic; }
   .msg-row.emote  .msg-sender { color: #c084fc; font-style: italic; }
+  .msg-row.mention {
+    background: rgba(250, 204, 21, 0.07);
+    border-left: 2px solid rgba(250, 204, 21, 0.5);
+    padding-left: 6px;
+    margin-left: -8px;
+    border-radius: 2px;
+  }
+
+  /* ── Connection dot states ──────────────────────────────────────────── */
+  .online-dot.reconnecting { background: #f59e0b; animation: dot-pulse 1s ease-in-out infinite; }
+  .online-dot.disconnected { background: #ef4444; }
+  @keyframes dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  /* ── Character counter ──────────────────────────────────────────────── */
+  .char-count { font-size: 10px; color: #555; flex-shrink: 0; margin-left: 6px; transition: color 0.2s; pointer-events: none; }
+  .char-count.warn   { color: #f59e0b; }
+  .char-count.danger { color: #ef4444; }
+
+  /* ── Mention toast ──────────────────────────────────────────────────── */
+  .toast-popup.mention { border-color: rgba(250, 204, 21, 0.6); }
+  .toast-popup.mention .toast-sender { color: #facc15; }
 
   .input-area {
     padding: 8px 10px;
@@ -398,8 +419,9 @@
 
   <div class="messages" id="messagesList"></div>
 
-  <div class="input-area">
-    <input type="text" id="chatInput" class="chat-input" placeholder="Press Enter to send..." onkeydown="handleInput(event)">
+  <div class="input-area" style="display:flex;align-items:center;">
+    <input type="text" id="chatInput" class="chat-input" placeholder="Press Enter to send..." onkeydown="handleInput(event)" oninput="updateCharCount(this)">
+    <span id="charCount" class="char-count"></span>
   </div>
 
   <div class="resize-handle" id="resizeHandle"></div>
@@ -544,6 +566,7 @@
     name = name.replace(/[\x00-\x1F\x7F]/g, '');
     if (name.length > 32) name = name.substr(0, 32);
     if (!name) { console.warn('settings: username empty after sanitize'); return; }
+    g_localUsername = name;
     console.log('settings: setting username "' + name + '"');
     if (typeof window.SendMessage === 'function') window.SendMessage('/name ' + name);
     else console.error('settings: SendMessage not available');
@@ -552,6 +575,7 @@
 
   window.SetUsernameInput = function(name) {
     document.getElementById('usernameInput').value = name;
+    g_localUsername = name;
   };
 
   function usernameKeydown(e) {
@@ -737,10 +761,10 @@
     return diff < 120;
   }
 
-  function showToast(sender, text, isEmote) {
+  function showToast(sender, text, isEmote, isMention) {
     if (!g_historyReady) return;
     if (document.body.classList.contains('chat-active')) return;
-    toastQueue.push({ sender: sender, text: text, isEmote: isEmote });
+    toastQueue.push({ sender: sender, text: text, isEmote: isEmote, isMention: !!isMention });
     console.log('toast: queued "' + sender + '" (queue=' + toastQueue.length + ')');
     if (!toastBusy) processToastQueue();
   }
@@ -755,19 +779,19 @@
     var senderEl = document.getElementById('toastSender');
     var textEl   = document.getElementById('toastText');
 
-    var displayName  = toastDisplayName(item.sender);
-    toast.classList.remove('hiding');
+    var displayName = toastDisplayName(item.sender);
+    toast.classList.remove('hiding', 'mention');
+    if (item.isMention) toast.classList.add('mention');
     senderEl.className   = 'toast-sender' + (item.isEmote ? ' emote' : '');
     senderEl.textContent = item.isEmote ? ('* ' + displayName) : (displayName + ':');
     textEl.textContent   = item.text;
     toast.classList.add('visible');
-    console.log('toast: showing "' + item.sender + '" (' + toastQueue.length + ' queued)');
+    console.log('toast: showing "' + item.sender + '" mention=' + item.isMention + ' (' + toastQueue.length + ' queued)');
 
     toastShowTimer = setTimeout(function() {
       toast.classList.add('hiding');
       toastHideTimer = setTimeout(function() {
-        toast.classList.remove('visible');
-        toast.classList.remove('hiding');
+        toast.classList.remove('visible', 'hiding', 'mention');
         processToastQueue();
       }, TOAST_FADE_MS);
     }, TOAST_DISPLAY_MS);
@@ -779,8 +803,7 @@
     toastQueue = [];
     toastBusy  = false;
     var toast = document.getElementById('toastPopup');
-    toast.classList.remove('visible');
-    toast.classList.remove('hiding');
+    toast.classList.remove('visible', 'hiding', 'mention');
   }
 
   // ── Messages ──────────────────────────────────────────────────────────────
@@ -807,33 +830,35 @@
       var safeSender = formatAdmin(escapeHtml(sender));
       var safeText   = formatAdmin(escapeHtml(text));
 
+      var isSystem  = String(sender).toUpperCase() === 'SYSTEM';
+      var isMention = !isSystem && g_localUsername &&
+        String(text).toLowerCase().indexOf(g_localUsername.toLowerCase()) !== -1;
+
       if (isEmote) {
-        row.className = 'msg-row emote';
+        row.className = 'msg-row emote' + (isMention ? ' mention' : '');
         row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
                       + '<span class="msg-sender">* ' + safeSender + '</span> '
                       + '<span class="msg-text">' + safeText + '</span>';
-      } else if (String(sender).toUpperCase() === 'SYSTEM') {
+      } else if (isSystem) {
         row.className = 'msg-row system';
         row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
                       + '<span class="msg-text">' + safeText + '</span>';
       } else {
-        row.className = 'msg-row';
+        row.className = 'msg-row' + (isMention ? ' mention' : '');
         row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
                       + '<span class="msg-sender">' + safeSender + ':</span> '
                       + '<span class="msg-text">' + safeText + '</span>';
       }
       list.appendChild(row);
 
-      // Keep only the last 200 messages
       while (list.children.length > 200) {
         list.removeChild(list.firstChild);
       }
 
       list.scrollTop = list.scrollHeight;
 
-      // Show a floating toast only for live messages (recent timestamp) when the chat panel is closed
-      if (document.body.classList.contains('passive-mode') && sender.toUpperCase() !== 'SYSTEM' && isRecentMessage(timestamp)) {
-        showToast(sender, text, isEmote);
+      if (document.body.classList.contains('passive-mode') && !isSystem && isRecentMessage(timestamp)) {
+        showToast(sender, text, isEmote, isMention);
       }
     } catch (err) {
       console.error('receiveMessage: exception — ' + err);
@@ -850,9 +875,17 @@
       var input = document.getElementById('chatInput');
       var val = input.value.trim();
       if (val) {
+        if (val === '/help') {
+          addSystemMessage('Commands: /name &lt;username&gt; — set display name  |  /me &lt;text&gt; — emote action');
+          input.value = '';
+          updateCharCount(input);
+          e.preventDefault();
+          return;
+        }
         if (val.length > 500) {
           addSystemMessage('Message too long (max 500 characters).');
           input.value = '';
+          updateCharCount(input);
           e.preventDefault();
           e.stopPropagation();
           return;
@@ -862,9 +895,32 @@
         else console.error('input: SendMessage not available');
       }
       input.value = '';
+      updateCharCount(input);
       e.preventDefault();
     }
     e.stopPropagation();
+  }
+
+  // ── Local username (for mention detection) ───────────────────────────────
+  var g_localUsername = '';
+
+  // ── Connection status ─────────────────────────────────────────────────────
+  function updateConnectionStatus(state) {
+    var dot = document.querySelector('.online-dot');
+    if (!dot) return;
+    dot.classList.remove('disconnected', 'reconnecting');
+    if (state === 'disconnected') dot.classList.add('disconnected');
+    else if (state === 'reconnecting') dot.classList.add('reconnecting');
+  }
+
+  // ── Character counter ─────────────────────────────────────────────────────
+  function updateCharCount(input) {
+    var el = document.getElementById('charCount');
+    if (!el) return;
+    var len = input.value.length;
+    if (len === 0) { el.textContent = ''; el.className = 'char-count'; return; }
+    el.textContent = len + '/500';
+    el.className = 'char-count' + (len >= 500 ? ' danger' : len >= 400 ? ' warn' : '');
   }
 
   // ── Online count ──────────────────────────────────────────────────────────
@@ -883,7 +939,7 @@
       if (op) { document.getElementById('opacitySlider').value = op; onOpacity(op); }
     } catch(e) { console.warn('prefs: localStorage unavailable — ' + e); }
 
-    var ids = ['chatBox','chatHeader','messagesList','chatInput','resizeHandle','settingsOverlay','privacyPolicy','tutorialModal','hudReminder','fontSlider','opacitySlider','chatEnabledToggle','onlineCount','onlineNum'];
+    var ids = ['chatBox','chatHeader','messagesList','chatInput','charCount','resizeHandle','settingsOverlay','privacyPolicy','tutorialModal','hudReminder','fontSlider','opacitySlider','chatEnabledToggle','onlineCount','onlineNum'];
     ids.forEach(function(id) { if (!document.getElementById(id)) console.error('init: #' + id + ' not found'); });
     console.log('FalloutChat: DOM init complete');
   })();

@@ -326,5 +326,13 @@ namespace FalloutChat
 			logger::info("ChatUI: online count → {}", count);
 			g_api->Invoke(g_view, ("updateOnlineCount(" + std::to_string(count) + ")").c_str());
 		}
+
+		void UpdateConnectionStatus(bool connected)
+		{
+			if (!g_api || !g_api->IsValid(g_view)) return;
+			const char* state = connected ? "connected" : "reconnecting";
+			logger::info("ChatUI: connection status → {}", state);
+			g_api->Invoke(g_view, (std::string("if(window.updateConnectionStatus) updateConnectionStatus('") + state + "');").c_str());
+		}
 	}
 }
