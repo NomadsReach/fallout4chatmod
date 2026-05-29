@@ -15,5 +15,8 @@ namespace FalloutChat
 		
 		// Called by ChatClient when new messages arrive
 		void OnMessagesReceived();
+
+		// Called by ChatClient when online count changes
+		void UpdateOnlineCount(int count);
 	}
 }

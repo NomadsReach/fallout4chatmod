@@ -5,9 +5,17 @@
 #include <shellapi.h>
 
 extern bool g_privacyAccepted;
+extern bool g_introDismissed;
+extern bool g_tutorialSeen;
+extern int g_fontSize;
+extern int g_bgOpacity;
 extern void SavePrivacyPolicy();
+extern void SaveTutorialSeen();
 extern void SaveIntroDismissed();
 extern void SaveUsername(const std::string& newName);
+extern void SaveChatEnabled(bool enabled);
+extern void SaveFontSize(int size);
+extern void SaveOpacity(int opacity);
 extern uint64_t g_steamID;
 extern uint64_t FetchSteamID();
 
@@ -25,7 +33,11 @@ namespace FalloutChat
 			size_t pos = 0;
 			while ((pos = s.find('\\', pos)) != std::string::npos) { s.replace(pos, 1, "\\\\"); pos += 2; }
 			pos = 0;
-			while ((pos = s.find('"', pos))  != std::string::npos) { s.replace(pos, 1, "\\\""); pos += 2; }
+			while ((pos = s.find('"',  pos)) != std::string::npos) { s.replace(pos, 1, "\\\""); pos += 2; }
+			pos = 0;
+			while ((pos = s.find('\n', pos)) != std::string::npos) { s.replace(pos, 1, "\\n");  pos += 2; }
+			pos = 0;
+			while ((pos = s.find('\r', pos)) != std::string::npos) { s.replace(pos, 1, "\\r");  pos += 2; }
 			return s;
 		}
 
@@ -104,6 +116,8 @@ namespace FalloutChat
 					}
 				}
 
+				if (text.size() > 4 && text.substr(0, 4) == "/me ")
+					logger::info("ChatUI: /me emote — relying on server to format as [EMOTE]");
 				logger::info("ChatUI: sending message, location='{}'", locName);
 				ChatClient::GetSingleton().Send(text, locName);
 			});
@@ -122,8 +136,46 @@ namespace FalloutChat
 			g_api->RegisterJSListener(view, "SetPrivacyAccepted", [](const char*) {
 				logger::info("ChatUI: privacy accepted");
 				::SavePrivacyPolicy();
-				::SaveIntroDismissed();
 			});
+
+			g_api->RegisterJSListener(view, "SetTutorialSeen", [](const char*) {
+				logger::info("ChatUI: tutorial seen");
+				::SaveTutorialSeen();
+			});
+
+			g_api->RegisterJSListener(view, "SaveChatEnabled", [](const char* jsonArgs) {
+				std::string val = UnquoteJS(jsonArgs);
+				logger::info("ChatUI: SaveChatEnabled '{}'", val);
+				::SaveChatEnabled(val == "true");
+			});
+
+			g_api->RegisterJSListener(view, "SaveFontSize", [](const char* jsonArgs) {
+				std::string val = UnquoteJS(jsonArgs);
+				logger::info("ChatUI: SaveFontSize '{}'", val);
+				try { ::SaveFontSize(std::stoi(val)); } catch (...) { logger::warn("ChatUI: SaveFontSize invalid '{}'", val); }
+			});
+
+			g_api->RegisterJSListener(view, "SaveOpacity", [](const char* jsonArgs) {
+				std::string val = UnquoteJS(jsonArgs);
+				logger::info("ChatUI: SaveOpacity '{}'", val);
+				try { ::SaveOpacity(std::stoi(val)); } catch (...) { logger::warn("ChatUI: SaveOpacity invalid '{}'", val); }
+			});
+
+			// Use double-quote delimiter so usernames with single quotes don't break the JS
+			std::string setUsernameJS = "if(window.SetUsernameInput) window.SetUsernameInput(\"" + EscapeJS(ChatClient::GetSingleton().GetUsername()) + "\");";
+			g_api->Invoke(view, setUsernameJS.c_str());
+
+			std::string setupJS = "if(window.setupOnboarding) window.setupOnboarding("
+				+ std::string(g_introDismissed ? "true" : "false") + ", "
+				+ std::string(g_privacyAccepted ? "true" : "false") + ", "
+				+ std::string(g_tutorialSeen ? "true" : "false") + ");";
+			g_api->Invoke(view, setupJS.c_str());
+
+			// Push persisted appearance settings from INI (overrides localStorage defaults)
+			std::string appearanceJS =
+				"if(document.getElementById('fontSlider')){ document.getElementById('fontSlider').value=" + std::to_string(g_fontSize) + "; onFontSize(" + std::to_string(g_fontSize) + "); }"
+				"if(document.getElementById('opacitySlider')){ document.getElementById('opacitySlider').value=" + std::to_string(g_bgOpacity) + "; onOpacity(" + std::to_string(g_bgOpacity) + "); }";
+			g_api->Invoke(view, appearanceJS.c_str());
 
 			logger::info("ChatUI: all JS listeners registered");
 
@@ -175,8 +227,9 @@ namespace FalloutChat
 				}
 			});
 
-			g_api->Hide(g_view);
-			logger::info("ChatUI: view hidden, waiting for DOM ready");
+			// Keep view ALWAYS shown so background HUD intervals work
+			g_api->Show(g_view);
+			logger::info("ChatUI: view shown (background), waiting for DOM ready");
 		}
 
 		void ToggleChat()
@@ -191,15 +244,33 @@ namespace FalloutChat
 			logger::info("ChatUI: chat {}", g_chatOpen ? "opened" : "closed");
 
 			if (g_chatOpen) {
-				g_api->Show(g_view);
+				if (!g_introDismissed) {
+					::SaveIntroDismissed();
+				}
+				// MUST use disableFocusMenu=false so the engine pushes FocusMenu and unclips the mouse
 				g_api->Focus(g_view, false, false);
-				ShowCursor(FALSE); // suppress the OS cursor PrismaUI just set; game renders its own sprite cursor
 				g_api->Invoke(g_view, "onChatOpened()");
+
+				// Hide the vanilla game cursor (which is pushed by the engine due to unpaused kUsesCursor)
+				auto ui = RE::UI::GetSingleton();
+				if (ui) {
+					auto cursorMenu = ui->GetMenu("CursorMenu");
+					if (cursorMenu && cursorMenu->uiMovie) {
+						cursorMenu->uiMovie->SetVisible(false);
+					}
+				}
 			} else {
 				g_api->Unfocus(g_view);
-				g_api->Hide(g_view);
-				ShowCursor(TRUE);
 				g_api->Invoke(g_view, "onChatClosed()");
+
+				// Restore the vanilla game cursor
+				auto ui = RE::UI::GetSingleton();
+				if (ui) {
+					auto cursorMenu = ui->GetMenu("CursorMenu");
+					if (cursorMenu && cursorMenu->uiMovie) {
+						cursorMenu->uiMovie->SetVisible(true);
+					}
+				}
 			}
 		}
 
@@ -214,15 +285,25 @@ namespace FalloutChat
 
 			auto msgs = ChatClient::GetSingleton().GetNewMessages();
 			logger::info("ChatUI: dispatching {} message(s) to UI", msgs.size());
+			std::string batch_js = "";
 			for (const auto& m : msgs) {
 				logger::info("ChatUI: render msg sender='{}' time='{}' emote={}", m.sender, m.timestamp, m.isEmote);
-				std::string js = "receiveMessage(\""
+				batch_js += "receiveMessage(\""
 					+ EscapeJS(m.sender) + "\", \""
 					+ EscapeJS(m.text)   + "\", \""
 					+ EscapeJS(m.timestamp) + "\", "
-					+ (m.isEmote ? "true" : "false") + ");";
-				g_api->Invoke(g_view, js.c_str());
+					+ (m.isEmote ? "true" : "false") + ");\n";
 			}
+			if (!batch_js.empty()) {
+				g_api->Invoke(g_view, batch_js.c_str());
+			}
+		}
+
+		void UpdateOnlineCount(int count)
+		{
+			if (!g_api || !g_api->IsValid(g_view)) return;
+			logger::info("ChatUI: online count → {}", count);
+			g_api->Invoke(g_view, ("updateOnlineCount(" + std::to_string(count) + ")").c_str());
 		}
 	}
 }

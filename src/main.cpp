@@ -11,6 +11,8 @@ uint64_t g_steamID = 0;
 bool g_chatEnabled = true;
 bool g_tutorialSeen = false;
 bool g_introDismissed = false;
+int g_fontSize = 14;
+int g_bgOpacity = 60;
 
 uint64_t FetchSteamID()
 {
@@ -93,6 +95,24 @@ void SaveIntroDismissed()
 	ini.Reset();
 }
 
+void SaveFontSize(int size)
+{
+	g_fontSize = size;
+	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
+	ini.SetLongValue("General", "font_size", size);
+	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
+	ini.Reset();
+}
+
+void SaveOpacity(int opacity)
+{
+	g_bgOpacity = opacity;
+	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
+	ini.SetLongValue("General", "bg_opacity", opacity);
+	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
+	ini.Reset();
+}
+
 void LoadConfigs()
 {
 	logger::info("LoadConfigs: reading FalloutChat.ini");
@@ -109,10 +129,12 @@ void LoadConfigs()
 	g_chatEnabled      = ini.GetBoolValue("General", "chat_enabled", true);
 	g_tutorialSeen     = ini.GetBoolValue("General", "tutorial_seen", false);
 	g_introDismissed   = ini.GetBoolValue("General", "intro_dismissed", privacyAlreadyAccepted);
+	g_fontSize         = (int)ini.GetLongValue("General", "font_size",  14);
+	g_bgOpacity        = (int)ini.GetLongValue("General", "bg_opacity", 60);
 	ini.Reset();
 
-	logger::info("LoadConfigs: url='{}' username='{}' privacy={} enabled={} tutorialSeen={} introDismissed={}",
-		serverUrl, username, g_privacyAccepted, g_chatEnabled, g_tutorialSeen, g_introDismissed);
+	logger::info("LoadConfigs: url='{}' username='{}' privacy={} enabled={} tutorialSeen={} introDismissed={} fontSize={} opacity={}",
+		serverUrl, username, g_privacyAccepted, g_chatEnabled, g_tutorialSeen, g_introDismissed, g_fontSize, g_bgOpacity);
 }
 
 extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Query(const F4SE::QueryInterface * a_f4se, F4SE::PluginInfo * a_info)
@@ -173,7 +195,8 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface * a_
 			FalloutChat::ChatUI::Initialize();
 			if (username.empty())
 				username = "Player";
-			FalloutChat::ChatClient::GetSingleton().Initialize(serverUrl, username, 0);
+			g_steamID = FetchSteamID();
+			FalloutChat::ChatClient::GetSingleton().Initialize(serverUrl, username, g_steamID);
 		} else if (msg->type == F4SE::MessagingInterface::kPostLoadGame) {
 			logger::info("F4SE: kPostLoadGame — creating view");
 			FalloutChat::ChatUI::CreateView();

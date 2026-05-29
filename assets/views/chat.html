@@ -8,7 +8,7 @@
     --bg-opacity: 0.6;
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; cursor: none !important; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     width: 100vw; height: 100vh;
@@ -17,17 +17,19 @@
     overflow: hidden;
     background: transparent;
     pointer-events: none;
+    cursor: none !important;
   }
+  
+  /* Hide the UI cursor everywhere to prevent double cursor since the game renders its own */
+  * { cursor: none !important; }
 
+  /* ── Chat Container ────────────────────────────────────────────── */
   .chat-container {
-    position: absolute;
-    bottom: 20px;
-    left: 20px;
-    width: 450px;
-    height: 300px;
+    display: flex;
+    position: absolute; bottom: 20px; left: 20px;
+    width: 450px; height: 350px;
     background: rgba(0, 0, 0, var(--bg-opacity));
     border-radius: 4px;
-    display: flex;
     flex-direction: column;
     overflow: hidden;
     min-width: 250px;
@@ -35,9 +37,23 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     pointer-events: auto;
     user-select: none;
+    transition: background 0.3s, border-color 0.3s;
   }
 
-  .chat-container.hidden { display: none; }
+  /* Force hide when disabled (in passive mode) or when modal is active */
+  body.chat-disabled.passive-mode .chat-container,
+  body.modal-active .chat-container { display: none !important; }
+
+  /* Passive mode styling */
+  body.passive-mode .chat-container { background: transparent; border-color: transparent; pointer-events: none; }
+  body.passive-mode .chat-header { display: none; }
+  body.passive-mode .input-area { display: none; }
+  body.passive-mode .messages::-webkit-scrollbar { display: none; }
+  body.passive-mode .msg-row { opacity: 0; transition: opacity 2s ease-in 10s; }
+  body.passive-mode .msg-row.recent { opacity: 1; transition: none; }
+  
+  /* Initial hidden state before setup is complete */
+  body.chat-startup .chat-container { display: none; }
 
   .chat-header {
     display: flex;
@@ -51,6 +67,21 @@
   }
 
   .brand { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .online-count {
+    font-size: 11px; color: #4ade80; 
+    margin-left: 8px;
+    background: rgba(74, 222, 128, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    display: inline-flex; align-items: center;
+  }
+  .online-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #4ade80; display: inline-block; flex-shrink: 0;
+    margin-right: 6px;
+  }
 
   .header-actions { display: flex; gap: 8px; }
 
@@ -101,107 +132,128 @@
   }
   .chat-input::placeholder { color: #888; }
 
-  /* ── Settings panel ──────────────────────────────────────────────────── */
-  .settings-panel {
+  /* ── Settings modal (full overlay) ─────────────────────────────────── */
+  .settings-overlay {
     display: none;
-    position: absolute;
-    top: 28px; right: 0;
-    width: 240px;
-    background: rgba(12, 12, 12, 0.97);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 4px;
-    padding: 12px;
-    z-index: 200;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: auto;
+    z-index: 500;
   }
-  .settings-panel.open { display: block; }
+  .settings-overlay.open { display: block; }
 
-  .settings-section-title {
-    font-size: 10px; font-weight: 600; color: #666;
-    text-transform: uppercase; letter-spacing: 0.6px;
-    margin-bottom: 8px; margin-top: 4px;
+  .settings-modal {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 320px;
+    background: #1a1a1a;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.8);
   }
-  .settings-section-title:first-child { margin-top: 0; }
+
+  .settings-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: #222;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .settings-modal-title {
+    font-size: 14px; font-weight: 600; color: #fff;
+  }
+  .close-btn {
+    background: none; border: none; color: #888;
+    font-size: 20px; line-height: 1; padding: 0;
+  }
+  .close-btn:hover { color: #fff; }
+
+  .settings-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .settings-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .settings-group-label {
+    font-size: 10px; font-weight: 700; color: #666;
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
 
   .settings-row {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
   }
 
-  .settings-label { font-size: 12px; color: #aaa; flex-shrink: 0; min-width: 52px; }
+  .settings-label { font-size: 13px; color: #bbb; flex: 1; }
 
   .settings-input {
-    flex: 1; background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 3px; color: #fff; font-family: inherit;
-    font-size: 13px; padding: 4px 6px; outline: none; min-width: 0;
-    user-select: text;
+    flex: 2; background: #111;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px; color: #fff; font-family: inherit;
+    font-size: 13px; padding: 6px 8px; outline: none; min-width: 0;
   }
+  .settings-input:focus { border-color: rgba(74, 222, 128, 0.5); }
   .settings-input::placeholder { color: #555; }
 
   .btn-sm {
-    padding: 4px 10px; border-radius: 3px;
-    font-family: inherit; font-weight: 500; font-size: 12px;
+    padding: 6px 12px; border-radius: 4px;
+    font-family: inherit; font-weight: 600; font-size: 12px;
     border: none; background: #4ade80; color: #000; flex-shrink: 0;
   }
   .btn-sm:hover { background: #22c55e; }
-  .btn-sm.secondary { background: rgba(255,255,255,0.1); color: #ccc; }
-  .btn-sm.secondary:hover { background: rgba(255,255,255,0.18); color: #fff; }
 
   .settings-slider-row {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
   }
-  .settings-slider-row .settings-label { min-width: 52px; }
+  .settings-slider-row .settings-label { min-width: 60px; flex: none; }
   input[type=range] {
-    flex: 1; height: 3px; accent-color: #4ade80;
-    background: rgba(255,255,255,0.15); border-radius: 2px;
+    flex: 1; height: 4px; accent-color: #4ade80;
     outline: none; border: none; padding: 0;
   }
-  .slider-value { font-size: 11px; color: #888; min-width: 28px; text-align: right; }
+  .slider-value { font-size: 12px; color: #666; min-width: 32px; text-align: right; }
 
   .settings-toggle-row {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 8px;
   }
-  .toggle-label { font-size: 12px; color: #aaa; }
+  .toggle-label { font-size: 13px; color: #bbb; }
   .toggle-switch {
-    width: 32px; height: 17px; background: rgba(255,255,255,0.15);
-    border-radius: 9px; position: relative; flex-shrink: 0;
+    width: 36px; height: 20px; background: #333;
+    border-radius: 10px; position: relative; flex-shrink: 0;
   }
   .toggle-switch.on { background: #4ade80; }
   .toggle-switch::after {
     content: ''; position: absolute;
-    width: 13px; height: 13px; border-radius: 50%;
-    background: #fff; top: 2px; left: 2px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #fff; top: 3px; left: 3px;
     transition: left 0.15s;
   }
-  .toggle-switch.on::after { left: 17px; }
+  .toggle-switch.on::after { left: 19px; }
 
-  .settings-divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 8px 0; }
+  .settings-divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); }
 
-  /* Commands list */
-  .cmd-list { list-style: none; }
-  .cmd-list li { font-size: 11px; color: #888; padding: 2px 0; line-height: 1.5; }
-  .cmd-list li code { color: #4ade80; font-family: 'Consolas', monospace; font-size: 11px; }
+  .cmd-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .cmd-list li { font-size: 12px; color: #888; line-height: 1.4; }
+  .cmd-list li code { color: #4ade80; font-family: 'Consolas', monospace; }
 
-  .settings-link-row { display: flex; gap: 6px; margin-top: 2px; }
+  .settings-links {
+    display: flex; gap: 8px;
+  }
   .link-btn {
-    flex: 1; text-align: center; padding: 5px 0;
-    border-radius: 3px; font-size: 11px;
+    flex: 1; text-align: center; padding: 7px 0;
+    border-radius: 4px; font-size: 12px; font-weight: 500;
     background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.1); color: #aaa;
   }
   .link-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
-
-  /* ── Resize handle ───────────────────────────────────────────────────── */
-  .resize-handle {
-    position: absolute; bottom: 0; right: 0;
-    width: 14px; height: 14px; z-index: 10;
-  }
-  .resize-handle::after {
-    content: ''; position: absolute;
-    bottom: 3px; right: 3px; width: 6px; height: 6px;
-    border-right: 2px solid rgba(255,255,255,0.25);
-    border-bottom: 2px solid rgba(255,255,255,0.25);
-  }
 
   /* ── Privacy modal ───────────────────────────────────────────────────── */
   .privacy-modal {
@@ -222,23 +274,79 @@
   .btn-primary:hover { background: #22c55e; }
   .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
   .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+
+  /* ── HUD Reminder & Tutorial ─────────────────────────────────────────── */
+  .hud-reminder {
+    position: absolute; top: 40px; right: 40px;
+    background: rgba(15, 15, 15, 0.85); backdrop-filter: blur(8px);
+    border: 1px solid rgba(74, 222, 128, 0.4);
+    border-radius: 8px; padding: 16px 20px;
+    color: #4ade80; font-size: 16px; font-weight: 600;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.8s ease-in-out;
+  }
+  .hud-reminder.visible { opacity: 1; }
+
+  .tutorial-modal {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 420px;
+    background: rgba(20, 20, 20, 0.97);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px; padding: 24px;
+    z-index: 300; display: none; pointer-events: auto;
+  }
+  .tutorial-modal.active { display: block; }
+  .tutorial-modal ul { color: #ccc; font-size: 13px; line-height: 1.6; padding-left: 20px; margin-bottom: 20px; }
+  .tutorial-modal li { margin-bottom: 8px; }
+  .tutorial-modal li span { color: #4ade80; font-family: monospace; }
+
+  .resize-handle {
+    position: absolute; bottom: 0; right: 0;
+    width: 14px; height: 14px;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.15) 50%);
+    z-index: 1;
+    flex-shrink: 0;
+  }
 </style>
 </head>
-<body>
+<body class="chat-startup passive-mode">
 
 <div id="privacyPolicy" class="privacy-modal">
   <div class="modal-title">Privacy Policy</div>
   <p>Before joining the chat, please review our Data Privacy Policy.<br><br>
-     Your messages, username, and game reports may be stored and reviewed by server administrators for moderation purposes. We do not sell your data.</p>
+     Your messages and username may be stored and reviewed by server administrators for moderation purposes. We do not sell your data.</p>
   <div class="modal-actions">
     <button class="btn btn-secondary" onclick="declinePrivacy()">Decline</button>
     <button class="btn btn-primary"   onclick="acceptPrivacy()">I Agree</button>
   </div>
 </div>
 
+<div id="tutorialModal" class="tutorial-modal">
+  <div class="modal-title">Welcome to Global Chat!</div>
+  <ul>
+    <li>Press <span>F11</span> at any time to toggle the chat.</li>
+    <li>Type <span>/me [action]</span> to send an emote (e.g. <i>* Survivor waves</i>).</li>
+    <li>Click the <span>Gear Icon</span> to change your display name, font size, or opacity.</li>
+    <li>While playing, the chat fades out passively. You can completely hide it by unchecking <span>Enable Chat</span> in settings.</li>
+  </ul>
+  <div class="modal-actions">
+    <button class="btn btn-primary" onclick="acceptTutorial()">Got It</button>
+  </div>
+</div>
+
+<div id="hudReminder" class="hud-reminder">
+  Press F11 to open Global Chat
+</div>
+
 <div id="chatBox" class="chat-container">
   <div class="chat-header" id="chatHeader">
-    <div class="brand">Global Chat</div>
+    <div style="display:flex;align-items:center;">
+      <div class="brand">Global Chat</div>
+      <span class="online-count" id="onlineCount"><span class="online-dot"></span><span><span id="onlineNum">0</span> online</span></span>
+    </div>
     <div class="header-actions">
 
       <!-- Settings gear -->
@@ -256,52 +364,6 @@
         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
       </button>
     </div>
-
-    <!-- Settings panel -->
-    <div id="settingsPanel" class="settings-panel">
-
-      <div class="settings-section-title">Account</div>
-      <div class="settings-row">
-        <span class="settings-label">Username</span>
-        <input type="text" id="usernameInput" class="settings-input" placeholder="Your name" onkeydown="usernameKeydown(event)">
-        <button class="btn-sm" onclick="applyUsername()">Set</button>
-      </div>
-
-      <hr class="settings-divider">
-      <div class="settings-section-title">Appearance</div>
-
-      <div class="settings-slider-row">
-        <span class="settings-label">Font size</span>
-        <input type="range" id="fontSlider" min="10" max="20" step="1" value="14" oninput="onFontSize(this.value)">
-        <span class="slider-value" id="fontVal">14px</span>
-      </div>
-
-      <div class="settings-slider-row">
-        <span class="settings-label">Opacity</span>
-        <input type="range" id="opacitySlider" min="10" max="100" step="5" value="60" oninput="onOpacity(this.value)">
-        <span class="slider-value" id="opacityVal">60%</span>
-      </div>
-
-      <div class="settings-toggle-row">
-        <span class="toggle-label">Enable chat overlay</span>
-        <div class="toggle-switch on" id="chatEnabledToggle" onclick="toggleChatEnabled()"></div>
-      </div>
-
-      <hr class="settings-divider">
-      <div class="settings-section-title">Commands</div>
-      <ul class="cmd-list">
-        <li><code>/name &lt;username&gt;</code> — change display name</li>
-        <li><code>/me &lt;action&gt;</code> — send an emote</li>
-        <li><code>F11</code> — open / close chat</li>
-        <li><code>ESC</code> — close chat</li>
-      </ul>
-
-      <hr class="settings-divider">
-      <div class="settings-link-row">
-        <button class="link-btn" onclick="openDiscord()">Discord</button>
-        <button class="link-btn" onclick="openWebsite()">Website</button>
-      </div>
-    </div>
   </div>
 
   <div class="messages" id="messagesList"></div>
@@ -311,6 +373,67 @@
   </div>
 
   <div class="resize-handle" id="resizeHandle"></div>
+</div>
+
+<!-- Settings modal overlay -->
+<div id="settingsOverlay" class="settings-overlay">
+  <div class="settings-modal">
+    <div class="settings-modal-header">
+      <span class="settings-modal-title">Chat Settings</span>
+      <button class="close-btn" onclick="closeSettings()">&times;</button>
+    </div>
+    <div class="settings-body">
+
+      <div class="settings-group">
+        <div class="settings-group-label">Account</div>
+        <div class="settings-row">
+          <label class="settings-label">Display name</label>
+          <input type="text" id="usernameInput" class="settings-input" placeholder="Your name" onkeydown="usernameKeydown(event)">
+          <button class="btn-sm" onclick="applyUsername()">Set</button>
+        </div>
+      </div>
+
+      <hr class="settings-divider">
+
+      <div class="settings-group">
+        <div class="settings-group-label">Appearance</div>
+        <div class="settings-slider-row">
+          <span class="settings-label">Font size</span>
+          <input type="range" id="fontSlider" min="10" max="20" step="1" value="14" oninput="onFontSize(this.value)">
+          <span class="slider-value" id="fontVal">14px</span>
+        </div>
+        <div class="settings-slider-row">
+          <span class="settings-label">Opacity</span>
+          <input type="range" id="opacitySlider" min="10" max="100" step="5" value="60" oninput="onOpacity(this.value)">
+          <span class="slider-value" id="opacityVal">60%</span>
+        </div>
+        <div class="settings-toggle-row">
+          <span class="toggle-label">Show chat overlay</span>
+          <div class="toggle-switch on" id="chatEnabledToggle" onclick="toggleChatEnabled()"></div>
+        </div>
+      </div>
+
+      <hr class="settings-divider">
+
+      <div class="settings-group">
+        <div class="settings-group-label">Commands</div>
+        <ul class="cmd-list">
+          <li><code>/name &lt;username&gt;</code> — change display name</li>
+          <li><code>/me &lt;action&gt;</code> — send an emote</li>
+          <li><code>F11</code> — toggle chat</li>
+          <li><code>ESC</code> — close chat</li>
+        </ul>
+      </div>
+
+      <hr class="settings-divider">
+
+      <div class="settings-links">
+        <button class="link-btn" onclick="openDiscord()">Discord</button>
+        <button class="link-btn" onclick="openWebsite()">Website</button>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 <script>
@@ -329,7 +452,7 @@
   var dragging = false, dragOffX = 0, dragOffY = 0;
 
   document.getElementById('chatHeader').addEventListener('mousedown', function(e) {
-    if (e.target.closest('.header-actions') || e.target.closest('.settings-panel')) return;
+    if (e.target.closest('.header-actions') || e.target.closest('.settings-overlay')) return;
     dragging = true;
     var r = document.getElementById('chatBox').getBoundingClientRect();
     dragOffX = e.clientX - r.left; dragOffY = e.clientY - r.top;
@@ -372,19 +495,16 @@
   // ── Settings ──────────────────────────────────────────────────────────────
   var chatEnabled = true;
 
-  function toggleSettings(e) {
-    e.stopPropagation();
-    var open = document.getElementById('settingsPanel').classList.toggle('open');
-    console.log('settings: ' + (open ? 'opened' : 'closed'));
+  function toggleSettings() {
+    var overlay = document.getElementById('settingsOverlay');
+    overlay.classList.toggle('open');
+    console.log('settings: ' + (overlay.classList.contains('open') ? 'opened' : 'closed'));
   }
 
-  document.addEventListener('mousedown', function(e) {
-    var panel = document.getElementById('settingsPanel');
-    if (panel.classList.contains('open') && !panel.contains(e.target) && !e.target.closest('.icon-btn[title="Settings"]')) {
-      panel.classList.remove('open');
-      console.log('settings: dismissed');
-    }
-  });
+  function closeSettings() {
+    document.getElementById('settingsOverlay').classList.remove('open');
+    console.log('settings: closed');
+  }
 
   function applyUsername() {
     var input = document.getElementById('usernameInput');
@@ -393,9 +513,12 @@
     console.log('settings: setting username "' + name + '"');
     if (typeof window.SendMessage === 'function') window.SendMessage('/name ' + name);
     else console.error('settings: SendMessage not available');
-    input.value = '';
-    document.getElementById('settingsPanel').classList.remove('open');
+    closeSettings();
   }
+
+  window.SetUsernameInput = function(name) {
+    document.getElementById('usernameInput').value = name;
+  };
 
   function usernameKeydown(e) {
     if (e.key === 'Enter') { applyUsername(); e.preventDefault(); }
@@ -422,24 +545,58 @@
     chatEnabled = !chatEnabled;
     var el = document.getElementById('chatEnabledToggle');
     el.classList.toggle('on', chatEnabled);
+    if (!chatEnabled) document.body.classList.add('chat-disabled');
+    else document.body.classList.remove('chat-disabled');
     console.log('settings: chat enabled = ' + chatEnabled);
     if (typeof window.SaveChatEnabled === 'function') window.SaveChatEnabled(chatEnabled ? 'true' : 'false');
     else console.warn('settings: SaveChatEnabled not available');
   }
 
-  // ── Privacy ───────────────────────────────────────────────────────────────
-  function showPrivacy() {
-    console.log('privacy: showing');
-    document.getElementById('privacyPolicy').classList.add('active');
-    document.getElementById('chatBox').classList.add('hidden');
+  // ── Onboarding & HUD ──────────────────────────────────────────────────────
+  var g_introDismissed = true;
+  var g_privacyAccepted = true;
+  var g_tutorialSeen = true;
+  var hudTimer = null;
+  var hudDisplayTimer = null;
+
+  window.setupOnboarding = function(intro, priv, tut) {
+    g_introDismissed = intro;
+    g_privacyAccepted = priv;
+    g_tutorialSeen = tut;
+    console.log('onboarding: intro=' + intro + ' priv=' + priv + ' tut=' + tut);
+    if (!g_introDismissed) {
+      // 5 minute interval
+      hudTimer = setInterval(showHudHint, 5 * 60 * 1000);
+      // Also show it immediately after a short delay so they know it's there
+      setTimeout(showHudHint, 5000);
+    } else {
+      document.body.classList.remove('chat-startup');
+    }
+  };
+
+  function showHudHint() {
+    if (g_introDismissed || document.body.classList.contains('chat-active')) return;
+    var hud = document.getElementById('hudReminder');
+    hud.classList.add('visible');
+    clearTimeout(hudDisplayTimer);
+    hudDisplayTimer = setTimeout(function() {
+      hud.classList.remove('visible');
+    }, 15000);
   }
 
   function acceptPrivacy() {
     console.log('privacy: accepted');
     document.getElementById('privacyPolicy').classList.remove('active');
-    document.getElementById('chatBox').classList.remove('hidden');
+    g_privacyAccepted = true;
     if (typeof window.SetPrivacyAccepted === 'function') window.SetPrivacyAccepted();
     else console.error('privacy: SetPrivacyAccepted not available');
+
+    if (!g_tutorialSeen) {
+      document.getElementById('tutorialModal').classList.add('active');
+    } else {
+      document.body.classList.remove('modal-active');
+      document.getElementById('chatInput').focus();
+    }
   }
 
   function declinePrivacy() {
@@ -447,6 +604,51 @@
     if (typeof window.CloseChat === 'function') window.CloseChat();
     else console.error('privacy: CloseChat not available');
   }
+
+  function acceptTutorial() {
+    console.log('tutorial: accepted');
+    document.getElementById('tutorialModal').classList.remove('active');
+    document.body.classList.remove('modal-active');
+    g_tutorialSeen = true;
+    document.getElementById('chatInput').focus();
+    if (typeof window.SetTutorialSeen === 'function') window.SetTutorialSeen();
+    else console.error('tutorial: SetTutorialSeen not available');
+  }
+
+  // ── Open / Close Event hooks ──────────────────────────────────────────────
+  window.onChatOpened = function() {
+    console.log('UI: chat opened');
+    document.body.classList.remove('chat-startup');
+    document.body.classList.remove('passive-mode');
+    document.body.classList.add('chat-active');
+
+    if (!g_introDismissed) {
+      g_introDismissed = true;
+      clearInterval(hudTimer);
+      clearTimeout(hudDisplayTimer);
+      document.getElementById('hudReminder').classList.remove('visible');
+    }
+
+    if (!g_privacyAccepted) {
+      document.body.classList.add('modal-active');
+      document.getElementById('privacyPolicy').classList.add('active');
+    } else if (!g_tutorialSeen) {
+      document.body.classList.add('modal-active');
+      document.getElementById('tutorialModal').classList.add('active');
+    } else {
+      document.getElementById('chatInput').focus();
+    }
+  };
+
+  window.onChatClosed = function() {
+    console.log('UI: chat closed');
+    document.body.classList.remove('chat-active');
+    document.body.classList.remove('modal-active');
+    document.body.classList.add('passive-mode');
+    closeSettings();
+    document.getElementById('privacyPolicy').classList.remove('active');
+    document.getElementById('tutorialModal').classList.remove('active');
+  };
 
   // ── External links ────────────────────────────────────────────────────────
   function openDiscord() {
@@ -460,43 +662,57 @@
     else console.error('openURL: OpenURL not available');
   }
 
-  // ── Chat lifecycle ────────────────────────────────────────────────────────
-  function onChatOpened() {
-    console.log('chat: opened');
-    document.getElementById('chatBox').classList.remove('hidden');
-    document.getElementById('chatInput').focus();
-  }
-  function onChatClosed() {
-    console.log('chat: closed');
-    document.getElementById('settingsPanel').classList.remove('open');
-  }
-
   // ── Messages ──────────────────────────────────────────────────────────────
   var _msgCount = 0;
 
+  function formatAdmin(str) {
+    var s = String(str);
+    var adminHtml = '<span style="color:#ff4444;font-weight:bold;">[Admin]</span>';
+    s = s.replace(/&lt;@&amp;1315627655638290533&gt;/g, adminHtml);
+    s = s.replace(/&lt;@1315627655638290533&gt;/g, adminHtml);
+    s = s.replace(/<@&?1315627655638290533>/g, adminHtml);
+    s = s.replace(/1315627655638290533/g, adminHtml);
+    return s;
+  }
+
   function receiveMessage(sender, text, timestamp, isEmote) {
+    if (!chatEnabled) return;
     _msgCount++;
     console.log('msg #' + _msgCount + ': sender="' + sender + '" ts=' + timestamp + ' emote=' + !!isEmote + ' len=' + String(text).length);
     var list = document.getElementById('messagesList');
     if (!list) { console.error('receiveMessage: messagesList not found'); return; }
     try {
       var row = document.createElement('div');
+      
+      var safeSender = formatAdmin(escapeHtml(sender));
+      var safeText = formatAdmin(escapeHtml(text));
+
       if (isEmote) {
         row.className = 'msg-row emote';
         row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
-                      + '<span class="msg-sender">* ' + escapeHtml(sender) + '</span> '
-                      + '<span class="msg-text">' + escapeHtml(text) + '</span>';
+                      + '<span class="msg-sender">* ' + safeSender + '</span> '
+                      + '<span class="msg-text">' + safeText + '</span>';
       } else if (String(sender).toUpperCase() === 'SYSTEM') {
         row.className = 'msg-row system';
         row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
-                      + '<span class="msg-text">' + escapeHtml(text) + '</span>';
+                      + '<span class="msg-text">' + safeText + '</span>';
       } else {
         row.className = 'msg-row';
         row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
-                      + '<span class="msg-sender">' + escapeHtml(sender) + ':</span> '
-                      + '<span class="msg-text">' + escapeHtml(text) + '</span>';
+                      + '<span class="msg-sender">' + safeSender + ':</span> '
+                      + '<span class="msg-text">' + safeText + '</span>';
       }
       list.appendChild(row);
+
+      // Handle passive mode fading
+      row.classList.add('recent');
+      setTimeout(function() { row.classList.remove('recent'); }, 100);
+
+      // Keep only the last 200 messages
+      while (list.children.length > 200) {
+        list.removeChild(list.firstChild);
+      }
+
       list.scrollTop = list.scrollHeight;
     } catch (err) {
       console.error('receiveMessage: exception — ' + err);
@@ -523,6 +739,13 @@
     e.stopPropagation();
   }
 
+  // ── Online count ──────────────────────────────────────────────────────────
+  function updateOnlineCount(n) {
+    console.log('online count: ' + n);
+    var el = document.getElementById('onlineNum');
+    if (el) el.textContent = n;
+  }
+
   // ── Restore saved preferences ─────────────────────────────────────────────
   (function() {
     try {
@@ -532,7 +755,7 @@
       if (op) { document.getElementById('opacitySlider').value = op; onOpacity(op); }
     } catch(e) { console.warn('prefs: localStorage unavailable — ' + e); }
 
-    var ids = ['chatBox','chatHeader','messagesList','chatInput','resizeHandle','settingsPanel','privacyPolicy','fontSlider','opacitySlider','chatEnabledToggle'];
+    var ids = ['chatBox','chatHeader','messagesList','chatInput','resizeHandle','settingsOverlay','privacyPolicy','tutorialModal','hudReminder','fontSlider','opacitySlider','chatEnabledToggle','onlineCount','onlineNum'];
     ids.forEach(function(id) { if (!document.getElementById(id)) console.error('init: #' + id + ' not found'); });
     console.log('FalloutChat: DOM init complete');
   })();

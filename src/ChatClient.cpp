@@ -61,6 +61,9 @@ namespace FalloutChat
 							int prev = _onlineCount;
 							_onlineCount = std::stoi(payload.substr(8));
 							logger::info("ChatClient: online count {} -> {}", prev, _onlineCount);
+							int newCount = _onlineCount;
+							if (auto* ti = F4SE::GetTaskInterface())
+								ti->AddTask([newCount]() { ChatUI::UpdateOnlineCount(newCount); });
 						} catch (...) {
 							logger::warn("ChatClient: failed to parse COUNT payload '{}'", payload);
 						}
@@ -71,34 +74,39 @@ namespace FalloutChat
 							std::string ts   = body.substr(0, pipePos);
 							std::string rest = body.substr(pipePos + 1);
 
-							ChatMessage histMsg;
-							histMsg.timestamp = ts;
+							// We removed the 30-minute cutoff so we can always show the last 20 messages
+							bool tooOld = false;
 
-							if (rest.rfind("[EMOTE]", 0) == 0) {
-								std::string emoteBody = rest.substr(7);
-								auto delim = emoteBody.find('\x01');
-								if (delim != std::string::npos) {
-									histMsg.sender = emoteBody.substr(0, delim);
-									histMsg.text   = emoteBody.substr(delim + 1);
+							if (!tooOld) {
+								ChatMessage histMsg;
+								histMsg.timestamp = ts;
+
+								if (rest.rfind("[EMOTE]", 0) == 0) {
+									std::string emoteBody = rest.substr(7);
+									auto delim = emoteBody.find('\x01');
+									if (delim != std::string::npos) {
+										histMsg.sender = emoteBody.substr(0, delim);
+										histMsg.text   = emoteBody.substr(delim + 1);
+									} else {
+										histMsg.text = emoteBody;
+									}
+									histMsg.isEmote = true;
+									logger::info("ChatClient: history emote from '{}' at {}", histMsg.sender, ts);
 								} else {
-									histMsg.text = emoteBody;
+									auto colonPos = rest.find(':');
+									if (colonPos != std::string::npos) {
+										histMsg.sender = rest.substr(0, colonPos);
+										histMsg.text   = rest.substr(colonPos + 1);
+										if (!histMsg.text.empty() && histMsg.text[0] == ' ')
+											histMsg.text = histMsg.text.substr(1);
+									} else {
+										histMsg.text = rest;
+									}
+									logger::info("ChatClient: history msg from '{}' at {}", histMsg.sender, ts);
 								}
-								histMsg.isEmote = true;
-								logger::info("ChatClient: history emote from '{}' at {}", histMsg.sender, ts);
-							} else {
-								auto colonPos = rest.find(':');
-								if (colonPos != std::string::npos) {
-									histMsg.sender = rest.substr(0, colonPos);
-									histMsg.text   = rest.substr(colonPos + 1);
-									if (!histMsg.text.empty() && histMsg.text[0] == ' ')
-										histMsg.text = histMsg.text.substr(1);
-								} else {
-									histMsg.text = rest;
-								}
-								logger::info("ChatClient: history msg from '{}' at {}", histMsg.sender, ts);
+								_messageQueue.push_back(histMsg);
+								gotMessage = true;
 							}
-							_messageQueue.push_back(histMsg);
-							gotMessage = true;
 						} else {
 							logger::warn("ChatClient: malformed HISTORY payload — no pipe separator");
 						}
@@ -204,7 +212,6 @@ namespace FalloutChat
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
 		std::vector<ChatMessage> msgs = std::move(_messageQueue);
-		_messageQueue.clear();
 		return msgs;
 	}
 
