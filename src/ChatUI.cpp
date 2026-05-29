@@ -53,20 +53,27 @@ namespace FalloutChat
 
 		static void OnDomReady(PrismaView view)
 		{
-			logger::info("ChatUI: DOM ready");
-			
-			// Register JS -> C++ callbacks
+			logger::info("ChatUI: DOM ready, view={}", view);
+
 			g_api->RegisterJSListener(view, "SendMessage", [](const char* jsonArgs) {
 				std::string text = UnquoteJS(jsonArgs);
-				if (text.empty()) return;
-
-				if (g_steamID == 0) {
-					g_steamID = FetchSteamID();
-					if (g_steamID != 0)
-						ChatClient::GetSingleton().SetSteamID(g_steamID);
+				logger::info("ChatUI: SendMessage received, len={}", text.size());
+				if (text.empty()) {
+					logger::warn("ChatUI: SendMessage ignored — empty text");
+					return;
 				}
 
 				if (g_steamID == 0) {
+					logger::info("ChatUI: SteamID not cached, attempting fetch");
+					g_steamID = FetchSteamID();
+					if (g_steamID != 0) {
+						logger::info("ChatUI: SteamID fetched late: {}", g_steamID);
+						ChatClient::GetSingleton().SetSteamID(g_steamID);
+					}
+				}
+
+				if (g_steamID == 0) {
+					logger::warn("ChatUI: SendMessage blocked — SteamID unavailable");
 					g_api->Invoke(g_view, "addSystemMessage('Unable to verify Steam status. Try again in a moment.')");
 					return;
 				}
@@ -76,10 +83,13 @@ namespace FalloutChat
 					while (!newName.empty() && newName.front() == ' ') newName.erase(newName.begin());
 					while (!newName.empty() && newName.back() == ' ') newName.pop_back();
 					if (!newName.empty()) {
+						logger::info("ChatUI: /name command, renaming to '{}'", newName);
 						ChatClient::GetSingleton().SetUsername(newName);
 						ChatClient::GetSingleton().SendRename(newName);
 						::SaveUsername(newName);
 						g_api->Invoke(g_view, ("addSystemMessage(\"Username changed to: " + EscapeJS(newName) + "\")").c_str());
+					} else {
+						logger::warn("ChatUI: /name command ignored — name was blank after trim");
 					}
 					return;
 				}
@@ -94,31 +104,45 @@ namespace FalloutChat
 					}
 				}
 
+				logger::info("ChatUI: sending message, location='{}'", locName);
 				ChatClient::GetSingleton().Send(text, locName);
 			});
 
 			g_api->RegisterJSListener(view, "CloseChat", [](const char*) {
+				logger::info("ChatUI: CloseChat from JS");
 				ToggleChat();
 			});
 
 			g_api->RegisterJSListener(view, "OpenURL", [](const char* urlArgs) {
 				std::string url = UnquoteJS(urlArgs);
+				logger::info("ChatUI: OpenURL '{}'", url);
 				ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
 			});
-			
+
 			g_api->RegisterJSListener(view, "SetPrivacyAccepted", [](const char*) {
+				logger::info("ChatUI: privacy accepted");
 				::SavePrivacyPolicy();
 				::SaveIntroDismissed();
 			});
+
+			logger::info("ChatUI: all JS listeners registered");
+
+			// Flush messages that arrived before the view was ready (e.g. server history)
+			if (auto* ti = F4SE::GetTaskInterface())
+				ti->AddTask([]() { OnMessagesReceived(); });
+			else
+				logger::warn("ChatUI: OnDomReady — task interface unavailable, queued messages may be lost");
 		}
 
 		void Initialize()
 		{
+			logger::info("ChatUI: initializing");
 			g_api = PRISMA_UI_API::RequestPluginAPI<PRISMA_UI_API::IVPrismaUI2>();
 			if (!g_api) {
-				logger::error("PrismaUI API not available. Chat UI will not work.");
+				logger::error("ChatUI: PrismaUI API unavailable — chat will not work");
 				return;
 			}
+			logger::info("ChatUI: PrismaUI API acquired");
 			KeyHandler::RegisterSink();
 			(void)KeyHandler::GetSingleton()->Register(0x7A, KeyEventType::KEY_DOWN, []() { // F11
 				ToggleChat();
@@ -126,33 +150,55 @@ namespace FalloutChat
 			(void)KeyHandler::GetSingleton()->Register(0x1B, KeyEventType::KEY_DOWN, []() { // Escape
 				if (g_chatOpen) ToggleChat();
 			});
+			logger::info("ChatUI: key bindings registered (F11=toggle, Esc=close)");
 		}
 
 		void CreateView()
 		{
-			if (!g_api || g_view != 0) return;
+			if (!g_api) {
+				logger::error("ChatUI: CreateView called but API is null");
+				return;
+			}
+			if (g_view != 0) {
+				logger::info("ChatUI: CreateView skipped — view already exists ({})", g_view);
+				return;
+			}
 
 			g_view = g_api->CreateView("chat.html", OnDomReady);
-			g_api->RegisterConsoleCallback(g_view, [](PrismaView, PRISMA_UI_API::ConsoleMessageLevel, const char* msg) {
-				logger::info("[JS] {}", msg);
+			logger::info("ChatUI: view created ({})", g_view);
+
+			g_api->RegisterConsoleCallback(g_view, [](PrismaView, PRISMA_UI_API::ConsoleMessageLevel level, const char* msg) {
+				switch (level) {
+				case PRISMA_UI_API::ConsoleMessageLevel::Error:   logger::error("[JS] {}", msg); break;
+				case PRISMA_UI_API::ConsoleMessageLevel::Warning: logger::warn("[JS] {}", msg);  break;
+				default:                                          logger::info("[JS] {}", msg);  break;
+				}
 			});
-			
+
 			g_api->Hide(g_view);
+			logger::info("ChatUI: view hidden, waiting for DOM ready");
 		}
 
 		void ToggleChat()
 		{
-			if (!g_api || !g_api->IsValid(g_view)) return;
-			
+			if (!g_api || !g_api->IsValid(g_view)) {
+				logger::warn("ChatUI: ToggleChat called but view is invalid (api={}, view={})",
+					(void*)g_api, g_view);
+				return;
+			}
+
 			g_chatOpen = !g_chatOpen;
-			
+			logger::info("ChatUI: chat {}", g_chatOpen ? "opened" : "closed");
+
 			if (g_chatOpen) {
 				g_api->Show(g_view);
 				g_api->Focus(g_view, false, false);
+				ShowCursor(FALSE); // suppress the OS cursor PrismaUI just set; game renders its own sprite cursor
 				g_api->Invoke(g_view, "onChatOpened()");
 			} else {
 				g_api->Unfocus(g_view);
 				g_api->Hide(g_view);
+				ShowCursor(TRUE);
 				g_api->Invoke(g_view, "onChatClosed()");
 			}
 		}
@@ -167,11 +213,14 @@ namespace FalloutChat
 			if (!g_api || !g_api->IsValid(g_view)) return;
 
 			auto msgs = ChatClient::GetSingleton().GetNewMessages();
+			logger::info("ChatUI: dispatching {} message(s) to UI", msgs.size());
 			for (const auto& m : msgs) {
+				logger::info("ChatUI: render msg sender='{}' time='{}' emote={}", m.sender, m.timestamp, m.isEmote);
 				std::string js = "receiveMessage(\""
 					+ EscapeJS(m.sender) + "\", \""
 					+ EscapeJS(m.text)   + "\", \""
-					+ EscapeJS(m.timestamp) + "\");";
+					+ EscapeJS(m.timestamp) + "\", "
+					+ (m.isEmote ? "true" : "false") + ");";
 				g_api->Invoke(g_view, js.c_str());
 			}
 		}

@@ -14,6 +14,7 @@ bool g_introDismissed = false;
 
 uint64_t FetchSteamID()
 {
+	logger::info("FetchSteamID: attempting");
 	HMODULE hSteam = GetModuleHandleA("steam_api64.dll");
 	if (!hSteam) {
 		logger::warn("FetchSteamID: steam_api64.dll not loaded");
@@ -40,6 +41,10 @@ uint64_t FetchSteamID()
 
 	uint64_t id = 0;
 	pfnGetSteamID(user, &id);
+	if (id != 0)
+		logger::info("FetchSteamID: got {}", id);
+	else
+		logger::warn("FetchSteamID: vtable call returned 0");
 	return id;
 }
 
@@ -90,6 +95,7 @@ void SaveIntroDismissed()
 
 void LoadConfigs()
 {
+	logger::info("LoadConfigs: reading FalloutChat.ini");
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 
 	serverUrl = ini.GetValue("General", "server_url", "wss://fallenworld.nexus/ws");
@@ -104,6 +110,9 @@ void LoadConfigs()
 	g_tutorialSeen     = ini.GetBoolValue("General", "tutorial_seen", false);
 	g_introDismissed   = ini.GetBoolValue("General", "intro_dismissed", privacyAlreadyAccepted);
 	ini.Reset();
+
+	logger::info("LoadConfigs: url='{}' username='{}' privacy={} enabled={} tutorialSeen={} introDismissed={}",
+		serverUrl, username, g_privacyAccepted, g_chatEnabled, g_tutorialSeen, g_introDismissed);
 }
 
 extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Query(const F4SE::QueryInterface * a_f4se, F4SE::PluginInfo * a_info)
@@ -160,11 +169,16 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface * a_
 	const F4SE::MessagingInterface* messageInterface = F4SE::GetMessagingInterface();
 	messageInterface->RegisterListener([](F4SE::MessagingInterface::Message* msg) -> void {
 		if (msg->type == F4SE::MessagingInterface::kGameDataReady) {
+			logger::info("F4SE: kGameDataReady — initializing chat");
 			FalloutChat::ChatUI::Initialize();
 			if (username.empty())
 				username = "Player";
 			FalloutChat::ChatClient::GetSingleton().Initialize(serverUrl, username, 0);
-		} else if (msg->type == F4SE::MessagingInterface::kPostLoadGame || msg->type == F4SE::MessagingInterface::kNewGame) {
+		} else if (msg->type == F4SE::MessagingInterface::kPostLoadGame) {
+			logger::info("F4SE: kPostLoadGame — creating view");
+			FalloutChat::ChatUI::CreateView();
+		} else if (msg->type == F4SE::MessagingInterface::kNewGame) {
+			logger::info("F4SE: kNewGame — creating view");
 			FalloutChat::ChatUI::CreateView();
 		}
 	});

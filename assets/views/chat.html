@@ -3,46 +3,42 @@
 <head>
 <meta charset="UTF-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+  :root {
+    --font-size: 14px;
+    --bg-opacity: 0.6;
+  }
 
   * { box-sizing: border-box; margin: 0; padding: 0; cursor: none !important; }
-  
+
   body {
     width: 100vw; height: 100vh;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Segoe UI', sans-serif;
     color: #fff;
     overflow: hidden;
     background: transparent;
+    pointer-events: none;
   }
-  
-  /* MMO-style Chat Container */
+
   .chat-container {
     position: absolute;
     bottom: 20px;
     left: 20px;
     width: 450px;
     height: 300px;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, var(--bg-opacity));
     border-radius: 4px;
     display: flex;
     flex-direction: column;
-    /* Allow resizing by dragging the bottom-right corner */
-    resize: both;
     overflow: hidden;
     min-width: 250px;
     min-height: 150px;
-    max-width: 50vw;
-    max-height: 80vh;
-    transition: opacity 0.3s ease;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    pointer-events: auto;
+    user-select: none;
   }
-  
-  .chat-container.hidden {
-    opacity: 0;
-    pointer-events: none;
-  }
-  
-  /* Unobtrusive Header */
+
+  .chat-container.hidden { display: none; }
+
   .chat-header {
     display: flex;
     justify-content: space-between;
@@ -50,284 +46,496 @@
     padding: 6px 10px;
     background: rgba(0, 0, 0, 0.4);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    cursor: default;
+    flex-shrink: 0;
+    position: relative;
   }
-  
-  .brand {
-    font-size: 12px;
-    font-weight: 600;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .header-actions {
-    display: flex;
-    gap: 8px;
-  }
-  
+
+  .brand { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .header-actions { display: flex; gap: 8px; }
+
   .icon-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #aaa;
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: none; border: none; color: #aaa;
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center; padding: 0;
   }
-  
   .icon-btn:hover { color: #fff; }
-  
-  .icon-btn svg {
-    width: 14px;
-    height: 14px;
-    fill: currentColor;
-  }
-  
-  /* Compact Messages Area */
+  .icon-btn svg { width: 14px; height: 14px; fill: currentColor; pointer-events: none; }
+
   .messages {
-    flex-grow: 1;
-    overflow-y: auto;
+    flex-grow: 1; overflow-y: auto;
     padding: 8px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px; /* Very tight spacing */
-    font-size: 14px;
+    display: flex; flex-direction: column; gap: 2px;
+    font-size: var(--font-size);
     line-height: 1.4;
     text-shadow: 1px 1px 1px rgba(0,0,0,0.8);
   }
-  
-  /* Custom Scrollbar */
-  .messages::-webkit-scrollbar { width: 8px; }
+
+  .messages::-webkit-scrollbar { width: 6px; }
   .messages::-webkit-scrollbar-track { background: transparent; }
-  .messages::-webkit-scrollbar-thumb { 
-    background: rgba(255, 255, 255, 0.2); 
-    border-radius: 4px; 
-  }
-  .messages::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
-  
-  .msg-row {
-    word-break: break-word;
-    animation: fadeIn 0.2s ease;
-  }
-  
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  
-  .msg-time { 
-    color: #888; 
-    font-size: 12px;
-    margin-right: 4px;
-  }
-  
-  .msg-sender { 
-    font-weight: 600; 
-    color: #4ade80; /* Clean Green */
-  }
-  
-  .msg-text { 
-    color: #e2e8f0;
-  }
-  
-  /* System Message Styling */
-  .msg-row.system .msg-sender { color: #fbbf24; } /* Amber */
-  .msg-row.system .msg-text { color: #fcd34d; }
-  
-  .msg-text img { 
-    max-width: 150px; 
-    max-height: 100px; 
-    display: block; 
-    margin-top: 4px; 
-    border-radius: 4px; 
-  }
-  
-  /* Input Area */
+  .messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+  .messages::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+  .msg-row { word-break: break-word; }
+  .msg-time   { color: #888; font-size: 12px; margin-right: 4px; }
+  .msg-sender { font-weight: 600; color: #4ade80; }
+  .msg-text   { color: #e2e8f0; }
+
+  .msg-row.system .msg-sender { color: #fbbf24; }
+  .msg-row.system .msg-text   { color: #fcd34d; }
+  .msg-row.emote  .msg-text   { color: #e9d5ff; font-style: italic; }
+  .msg-row.emote  .msg-sender { color: #c084fc; font-style: italic; }
+
   .input-area {
     padding: 8px 10px;
     background: rgba(0, 0, 0, 0.6);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    user-select: text;
   }
-  
+
   .chat-input {
-    width: 100%;
-    background: transparent;
-    border: none;
-    color: #fff;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    outline: none;
+    width: 100%; background: transparent; border: none;
+    color: #fff; font-family: inherit; font-size: var(--font-size);
+    outline: none; user-select: text;
   }
-  
   .chat-input::placeholder { color: #888; }
-  
-  /* Privacy Modal */
-  .privacy-modal {
+
+  /* ── Settings panel ──────────────────────────────────────────────────── */
+  .settings-panel {
+    display: none;
     position: absolute;
-    top: 50%; left: 50%;
+    top: 28px; right: 0;
+    width: 240px;
+    background: rgba(12, 12, 12, 0.97);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px;
+    padding: 12px;
+    z-index: 200;
+  }
+  .settings-panel.open { display: block; }
+
+  .settings-section-title {
+    font-size: 10px; font-weight: 600; color: #666;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-bottom: 8px; margin-top: 4px;
+  }
+  .settings-section-title:first-child { margin-top: 0; }
+
+  .settings-row {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  }
+
+  .settings-label { font-size: 12px; color: #aaa; flex-shrink: 0; min-width: 52px; }
+
+  .settings-input {
+    flex: 1; background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 3px; color: #fff; font-family: inherit;
+    font-size: 13px; padding: 4px 6px; outline: none; min-width: 0;
+    user-select: text;
+  }
+  .settings-input::placeholder { color: #555; }
+
+  .btn-sm {
+    padding: 4px 10px; border-radius: 3px;
+    font-family: inherit; font-weight: 500; font-size: 12px;
+    border: none; background: #4ade80; color: #000; flex-shrink: 0;
+  }
+  .btn-sm:hover { background: #22c55e; }
+  .btn-sm.secondary { background: rgba(255,255,255,0.1); color: #ccc; }
+  .btn-sm.secondary:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+  .settings-slider-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .settings-slider-row .settings-label { min-width: 52px; }
+  input[type=range] {
+    flex: 1; height: 3px; accent-color: #4ade80;
+    background: rgba(255,255,255,0.15); border-radius: 2px;
+    outline: none; border: none; padding: 0;
+  }
+  .slider-value { font-size: 11px; color: #888; min-width: 28px; text-align: right; }
+
+  .settings-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .toggle-label { font-size: 12px; color: #aaa; }
+  .toggle-switch {
+    width: 32px; height: 17px; background: rgba(255,255,255,0.15);
+    border-radius: 9px; position: relative; flex-shrink: 0;
+  }
+  .toggle-switch.on { background: #4ade80; }
+  .toggle-switch::after {
+    content: ''; position: absolute;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px;
+    transition: left 0.15s;
+  }
+  .toggle-switch.on::after { left: 17px; }
+
+  .settings-divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 8px 0; }
+
+  /* Commands list */
+  .cmd-list { list-style: none; }
+  .cmd-list li { font-size: 11px; color: #888; padding: 2px 0; line-height: 1.5; }
+  .cmd-list li code { color: #4ade80; font-family: 'Consolas', monospace; font-size: 11px; }
+
+  .settings-link-row { display: flex; gap: 6px; margin-top: 2px; }
+  .link-btn {
+    flex: 1; text-align: center; padding: 5px 0;
+    border-radius: 3px; font-size: 11px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1); color: #aaa;
+  }
+  .link-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+  /* ── Resize handle ───────────────────────────────────────────────────── */
+  .resize-handle {
+    position: absolute; bottom: 0; right: 0;
+    width: 14px; height: 14px; z-index: 10;
+  }
+  .resize-handle::after {
+    content: ''; position: absolute;
+    bottom: 3px; right: 3px; width: 6px; height: 6px;
+    border-right: 2px solid rgba(255,255,255,0.25);
+    border-bottom: 2px solid rgba(255,255,255,0.25);
+  }
+
+  /* ── Privacy modal ───────────────────────────────────────────────────── */
+  .privacy-modal {
+    position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     width: 400px;
-    background: rgba(20, 20, 20, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    padding: 24px;
-    z-index: 100;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    display: none;
+    background: rgba(20, 20, 20, 0.97);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px; padding: 24px;
+    z-index: 300; display: none; pointer-events: auto;
   }
-  
-  .privacy-modal.active {
-    display: block;
-  }
-
-  .modal-title {
-    color: #fff;
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 8px;
-  }
-
-  .privacy-modal p {
-    font-size: 13px;
-    line-height: 1.5;
-    color: #ccc;
-    margin-bottom: 20px;
-  }
-  
-  .modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-  
-  .btn {
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    font-size: 13px;
-    cursor: pointer;
-    border: none;
-    transition: background 0.2s;
-  }
-  
-  .btn-primary { background: #4ade80; color: #000; }
+  .privacy-modal.active { display: block; }
+  .modal-title { color: #fff; font-size: 18px; font-weight: 600; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+  .privacy-modal p { font-size: 13px; line-height: 1.5; color: #ccc; margin-bottom: 20px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .btn { padding: 8px 16px; border-radius: 4px; font-family: inherit; font-weight: 500; font-size: 13px; border: none; }
+  .btn-primary   { background: #4ade80; color: #000; }
   .btn-primary:hover { background: #22c55e; }
-  
-  .btn-secondary { background: rgba(255, 255, 255, 0.1); color: #fff; }
-  .btn-secondary:hover { background: rgba(255, 255, 255, 0.2); }
-
+  .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+  .btn-secondary:hover { background: rgba(255,255,255,0.2); }
 </style>
 </head>
 <body>
 
 <div id="privacyPolicy" class="privacy-modal">
   <div class="modal-title">Privacy Policy</div>
-  <p>
-    Before joining the chat, please review our Data Privacy Policy.<br><br>
-    Your messages, username, and game reports may be stored and reviewed by server administrators for moderation purposes. We do not sell your data.
-  </p>
+  <p>Before joining the chat, please review our Data Privacy Policy.<br><br>
+     Your messages, username, and game reports may be stored and reviewed by server administrators for moderation purposes. We do not sell your data.</p>
   <div class="modal-actions">
     <button class="btn btn-secondary" onclick="declinePrivacy()">Decline</button>
-    <button class="btn btn-primary" onclick="acceptPrivacy()">I Agree</button>
+    <button class="btn btn-primary"   onclick="acceptPrivacy()">I Agree</button>
   </div>
 </div>
 
 <div id="chatBox" class="chat-container">
-  <div class="chat-header">
+  <div class="chat-header" id="chatHeader">
     <div class="brand">Global Chat</div>
     <div class="header-actions">
-      <button class="icon-btn" onclick="openDiscord()" title="Join Discord">
-        <svg viewBox="0 0 24 24"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+
+      <!-- Settings gear -->
+      <button class="icon-btn" onclick="toggleSettings(event)" title="Settings">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
       </button>
+
+      <!-- Discord -->
+      <button class="icon-btn" onclick="openDiscord()" title="Discord">
+        <svg viewBox="0 0 24 24"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286z"/></svg>
+      </button>
+
+      <!-- Website -->
       <button class="icon-btn" onclick="openWebsite()" title="Website">
         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
       </button>
     </div>
+
+    <!-- Settings panel -->
+    <div id="settingsPanel" class="settings-panel">
+
+      <div class="settings-section-title">Account</div>
+      <div class="settings-row">
+        <span class="settings-label">Username</span>
+        <input type="text" id="usernameInput" class="settings-input" placeholder="Your name" onkeydown="usernameKeydown(event)">
+        <button class="btn-sm" onclick="applyUsername()">Set</button>
+      </div>
+
+      <hr class="settings-divider">
+      <div class="settings-section-title">Appearance</div>
+
+      <div class="settings-slider-row">
+        <span class="settings-label">Font size</span>
+        <input type="range" id="fontSlider" min="10" max="20" step="1" value="14" oninput="onFontSize(this.value)">
+        <span class="slider-value" id="fontVal">14px</span>
+      </div>
+
+      <div class="settings-slider-row">
+        <span class="settings-label">Opacity</span>
+        <input type="range" id="opacitySlider" min="10" max="100" step="5" value="60" oninput="onOpacity(this.value)">
+        <span class="slider-value" id="opacityVal">60%</span>
+      </div>
+
+      <div class="settings-toggle-row">
+        <span class="toggle-label">Enable chat overlay</span>
+        <div class="toggle-switch on" id="chatEnabledToggle" onclick="toggleChatEnabled()"></div>
+      </div>
+
+      <hr class="settings-divider">
+      <div class="settings-section-title">Commands</div>
+      <ul class="cmd-list">
+        <li><code>/name &lt;username&gt;</code> — change display name</li>
+        <li><code>/me &lt;action&gt;</code> — send an emote</li>
+        <li><code>F11</code> — open / close chat</li>
+        <li><code>ESC</code> — close chat</li>
+      </ul>
+
+      <hr class="settings-divider">
+      <div class="settings-link-row">
+        <button class="link-btn" onclick="openDiscord()">Discord</button>
+        <button class="link-btn" onclick="openWebsite()">Website</button>
+      </div>
+    </div>
   </div>
-  
+
   <div class="messages" id="messagesList"></div>
-  
+
   <div class="input-area">
-    <input type="text" id="chatInput" class="chat-input" placeholder="Say something..." onkeydown="handleInput(event)">
+    <input type="text" id="chatInput" class="chat-input" placeholder="Press Enter to send..." onkeydown="handleInput(event)">
   </div>
+
+  <div class="resize-handle" id="resizeHandle"></div>
 </div>
 
 <script>
+  console.log('FalloutChat: script executing');
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function nowTs() {
+    var n = new Date();
+    return n.getHours().toString().padStart(2,'0') + ':' + n.getMinutes().toString().padStart(2,'0') + ':' + n.getSeconds().toString().padStart(2,'0');
+  }
+
+  // ── Drag ──────────────────────────────────────────────────────────────────
+  var dragging = false, dragOffX = 0, dragOffY = 0;
+
+  document.getElementById('chatHeader').addEventListener('mousedown', function(e) {
+    if (e.target.closest('.header-actions') || e.target.closest('.settings-panel')) return;
+    dragging = true;
+    var r = document.getElementById('chatBox').getBoundingClientRect();
+    dragOffX = e.clientX - r.left; dragOffY = e.clientY - r.top;
+    console.log('drag: start (' + e.clientX + ',' + e.clientY + ')');
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (dragging) {
+      var box = document.getElementById('chatBox');
+      box.style.left = (e.clientX - dragOffX) + 'px';
+      box.style.top  = (e.clientY - dragOffY) + 'px';
+      box.style.bottom = 'auto'; box.style.right = 'auto';
+    }
+    if (resizing) {
+      var box = document.getElementById('chatBox');
+      box.style.width  = Math.max(250, resizeStartW + (e.clientX - resizeStartX)) + 'px';
+      box.style.height = Math.max(150, resizeStartH + (e.clientY - resizeStartY)) + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (dragging) { var r = document.getElementById('chatBox').getBoundingClientRect(); console.log('drag: end (' + Math.round(r.left) + ',' + Math.round(r.top) + ')'); }
+    if (resizing) { var r = document.getElementById('chatBox').getBoundingClientRect(); console.log('resize: end ' + Math.round(r.width) + 'x' + Math.round(r.height)); }
+    dragging = false; resizing = false;
+  });
+
+  // ── Resize ────────────────────────────────────────────────────────────────
+  var resizing = false, resizeStartX = 0, resizeStartY = 0, resizeStartW = 0, resizeStartH = 0;
+
+  document.getElementById('resizeHandle').addEventListener('mousedown', function(e) {
+    resizing = true;
+    var r = document.getElementById('chatBox').getBoundingClientRect();
+    resizeStartX = e.clientX; resizeStartY = e.clientY;
+    resizeStartW = r.width;   resizeStartH = r.height;
+    console.log('resize: start ' + Math.round(r.width) + 'x' + Math.round(r.height));
+    e.preventDefault(); e.stopPropagation();
+  });
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  var chatEnabled = true;
+
+  function toggleSettings(e) {
+    e.stopPropagation();
+    var open = document.getElementById('settingsPanel').classList.toggle('open');
+    console.log('settings: ' + (open ? 'opened' : 'closed'));
+  }
+
+  document.addEventListener('mousedown', function(e) {
+    var panel = document.getElementById('settingsPanel');
+    if (panel.classList.contains('open') && !panel.contains(e.target) && !e.target.closest('.icon-btn[title="Settings"]')) {
+      panel.classList.remove('open');
+      console.log('settings: dismissed');
+    }
+  });
+
+  function applyUsername() {
+    var input = document.getElementById('usernameInput');
+    var name = input.value.trim();
+    if (!name) { console.warn('settings: empty username ignored'); return; }
+    console.log('settings: setting username "' + name + '"');
+    if (typeof window.SendMessage === 'function') window.SendMessage('/name ' + name);
+    else console.error('settings: SendMessage not available');
+    input.value = '';
+    document.getElementById('settingsPanel').classList.remove('open');
+  }
+
+  function usernameKeydown(e) {
+    if (e.key === 'Enter') { applyUsername(); e.preventDefault(); }
+    e.stopPropagation();
+  }
+
+  function onFontSize(val) {
+    document.documentElement.style.setProperty('--font-size', val + 'px');
+    document.getElementById('fontVal').textContent = val + 'px';
+    console.log('settings: font size ' + val + 'px');
+    if (typeof window.SaveFontSize === 'function') window.SaveFontSize(String(val));
+    try { localStorage.setItem('fc_font_size', val); } catch(e) {}
+  }
+
+  function onOpacity(val) {
+    document.documentElement.style.setProperty('--bg-opacity', (val / 100).toFixed(2));
+    document.getElementById('opacityVal').textContent = val + '%';
+    console.log('settings: opacity ' + val + '%');
+    if (typeof window.SaveOpacity === 'function') window.SaveOpacity(String(val));
+    try { localStorage.setItem('fc_opacity', val); } catch(e) {}
+  }
+
+  function toggleChatEnabled() {
+    chatEnabled = !chatEnabled;
+    var el = document.getElementById('chatEnabledToggle');
+    el.classList.toggle('on', chatEnabled);
+    console.log('settings: chat enabled = ' + chatEnabled);
+    if (typeof window.SaveChatEnabled === 'function') window.SaveChatEnabled(chatEnabled ? 'true' : 'false');
+    else console.warn('settings: SaveChatEnabled not available');
+  }
+
+  // ── Privacy ───────────────────────────────────────────────────────────────
   function showPrivacy() {
+    console.log('privacy: showing');
     document.getElementById('privacyPolicy').classList.add('active');
     document.getElementById('chatBox').classList.add('hidden');
   }
 
   function acceptPrivacy() {
+    console.log('privacy: accepted');
     document.getElementById('privacyPolicy').classList.remove('active');
     document.getElementById('chatBox').classList.remove('hidden');
     if (typeof window.SetPrivacyAccepted === 'function') window.SetPrivacyAccepted();
+    else console.error('privacy: SetPrivacyAccepted not available');
   }
 
   function declinePrivacy() {
+    console.log('privacy: declined');
     if (typeof window.CloseChat === 'function') window.CloseChat();
+    else console.error('privacy: CloseChat not available');
   }
 
+  // ── External links ────────────────────────────────────────────────────────
   function openDiscord() {
-    if (typeof window.OpenURL === 'function') window.OpenURL("https://discord.gg/fallenworld");
+    console.log('openURL: discord');
+    if (typeof window.OpenURL === 'function') window.OpenURL('https://discord.gg/fallenworld');
+    else console.error('openURL: OpenURL not available');
   }
-
   function openWebsite() {
-    if (typeof window.OpenURL === 'function') window.OpenURL("https://fallenworld.nexus/");
+    console.log('openURL: website');
+    if (typeof window.OpenURL === 'function') window.OpenURL('https://fallenworld.nexus/');
+    else console.error('openURL: OpenURL not available');
   }
 
+  // ── Chat lifecycle ────────────────────────────────────────────────────────
   function onChatOpened() {
+    console.log('chat: opened');
     document.getElementById('chatBox').classList.remove('hidden');
     document.getElementById('chatInput').focus();
   }
-
   function onChatClosed() {
-    // optional fade logic
+    console.log('chat: closed');
+    document.getElementById('settingsPanel').classList.remove('open');
   }
 
-  function receiveMessage(sender, text, timestamp) {
-    const list = document.getElementById('messagesList');
-    
-    const imgRegex = /https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp)/i;
-    const match = text.match(imgRegex);
-    
-    let innerHtml = '';
-    if (match) {
-        innerHtml = text.replace(match[0], `<img src="${match[0]}">`);
-    } else {
-        innerHtml = text;
-    }
+  // ── Messages ──────────────────────────────────────────────────────────────
+  var _msgCount = 0;
 
-    const row = document.createElement('div');
-    row.className = sender.toUpperCase() === 'SYSTEM' ? 'msg-row system' : 'msg-row';
-    
-    // MMO Style text format: [12:00] Player: Message
-    row.innerHTML = `
-      <span class="msg-time">[${timestamp}]</span>
-      <span class="msg-sender">${sender}:</span>
-      <span class="msg-text">${innerHtml}</span>
-    `;
-    
-    list.appendChild(row);
-    list.scrollTop = list.scrollHeight;
+  function receiveMessage(sender, text, timestamp, isEmote) {
+    _msgCount++;
+    console.log('msg #' + _msgCount + ': sender="' + sender + '" ts=' + timestamp + ' emote=' + !!isEmote + ' len=' + String(text).length);
+    var list = document.getElementById('messagesList');
+    if (!list) { console.error('receiveMessage: messagesList not found'); return; }
+    try {
+      var row = document.createElement('div');
+      if (isEmote) {
+        row.className = 'msg-row emote';
+        row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
+                      + '<span class="msg-sender">* ' + escapeHtml(sender) + '</span> '
+                      + '<span class="msg-text">' + escapeHtml(text) + '</span>';
+      } else if (String(sender).toUpperCase() === 'SYSTEM') {
+        row.className = 'msg-row system';
+        row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
+                      + '<span class="msg-text">' + escapeHtml(text) + '</span>';
+      } else {
+        row.className = 'msg-row';
+        row.innerHTML = '<span class="msg-time">[' + timestamp + ']</span> '
+                      + '<span class="msg-sender">' + escapeHtml(sender) + ':</span> '
+                      + '<span class="msg-text">' + escapeHtml(text) + '</span>';
+      }
+      list.appendChild(row);
+      list.scrollTop = list.scrollHeight;
+    } catch (err) {
+      console.error('receiveMessage: exception — ' + err);
+    }
+  }
+
+  function addSystemMessage(text) {
+    console.log('system msg: ' + text);
+    receiveMessage('System', text, nowTs(), false);
   }
 
   function handleInput(e) {
     if (e.key === 'Enter') {
-      const input = document.getElementById('chatInput');
-      const val = input.value.trim();
+      var input = document.getElementById('chatInput');
+      var val = input.value.trim();
       if (val) {
+        console.log('input: send len=' + val.length);
         if (typeof window.SendMessage === 'function') window.SendMessage(val);
+        else console.error('input: SendMessage not available');
       }
       input.value = '';
+      e.preventDefault();
     }
+    e.stopPropagation();
   }
+
+  // ── Restore saved preferences ─────────────────────────────────────────────
+  (function() {
+    try {
+      var fs = localStorage.getItem('fc_font_size');
+      if (fs) { document.getElementById('fontSlider').value = fs; onFontSize(fs); }
+      var op = localStorage.getItem('fc_opacity');
+      if (op) { document.getElementById('opacitySlider').value = op; onOpacity(op); }
+    } catch(e) { console.warn('prefs: localStorage unavailable — ' + e); }
+
+    var ids = ['chatBox','chatHeader','messagesList','chatInput','resizeHandle','settingsPanel','privacyPolicy','fontSlider','opacitySlider','chatEnabledToggle'];
+    ids.forEach(function(id) { if (!document.getElementById(id)) console.error('init: #' + id + ' not found'); });
+    console.log('FalloutChat: DOM init complete');
+  })();
 </script>
 </body>
 </html>

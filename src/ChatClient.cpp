@@ -28,12 +28,16 @@ namespace FalloutChat
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
 		if (_webSocket) {
+			logger::info("ChatClient: re-initializing, shutting down existing connection");
 			ShutdownNoLock();
 		}
 
 		_url = url;
 		_username = username;
 		_steamID = steamID;
+
+		logger::info("ChatClient: initializing — url='{}' username='{}' steamID={}",
+			url, username, steamID);
 
 		ix::initNetSystem();
 
@@ -50,9 +54,16 @@ namespace FalloutChat
 				{
 					std::lock_guard<std::mutex> innerLock(_mutex);
 					const std::string& payload = msg->str;
+					logger::info("ChatClient: raw message ({} bytes)", payload.size());
 
 					if (payload.rfind("[COUNT]:", 0) == 0) {
-						try { _onlineCount = std::stoi(payload.substr(8)); } catch (...) {}
+						try {
+							int prev = _onlineCount;
+							_onlineCount = std::stoi(payload.substr(8));
+							logger::info("ChatClient: online count {} -> {}", prev, _onlineCount);
+						} catch (...) {
+							logger::warn("ChatClient: failed to parse COUNT payload '{}'", payload);
+						}
 					} else if (payload.rfind("[HISTORY]", 0) == 0) {
 						std::string body = payload.substr(9);
 						auto pipePos = body.find('|');
@@ -73,6 +84,7 @@ namespace FalloutChat
 									histMsg.text = emoteBody;
 								}
 								histMsg.isEmote = true;
+								logger::info("ChatClient: history emote from '{}' at {}", histMsg.sender, ts);
 							} else {
 								auto colonPos = rest.find(':');
 								if (colonPos != std::string::npos) {
@@ -83,9 +95,12 @@ namespace FalloutChat
 								} else {
 									histMsg.text = rest;
 								}
+								logger::info("ChatClient: history msg from '{}' at {}", histMsg.sender, ts);
 							}
 							_messageQueue.push_back(histMsg);
 							gotMessage = true;
+						} else {
+							logger::warn("ChatClient: malformed HISTORY payload — no pipe separator");
 						}
 					} else {
 						ChatMessage chatMsg;
@@ -100,6 +115,7 @@ namespace FalloutChat
 								chatMsg.text = body;
 							}
 							chatMsg.isEmote = true;
+							logger::info("ChatClient: emote from '{}'", chatMsg.sender);
 						} else {
 							size_t colonPos = payload.find(':');
 							if (colonPos != std::string::npos) {
@@ -111,6 +127,7 @@ namespace FalloutChat
 								chatMsg.sender = "Server";
 								chatMsg.text   = payload;
 							}
+							logger::info("ChatClient: chat msg from '{}'", chatMsg.sender);
 						}
 
 						auto now = std::chrono::system_clock::now();
@@ -129,22 +146,25 @@ namespace FalloutChat
 				if (gotMessage) {
 					if (auto* ti = F4SE::GetTaskInterface())
 						ti->AddTask([]() { ChatUI::OnMessagesReceived(); });
+					else
+						logger::error("ChatClient: F4SE task interface unavailable, message dropped");
 				}
 			} else if (msg->type == ix::WebSocketMessageType::Open) {
 				_connected = true;
-				logger::warn("ChatClient: connected to {}", _url);
+				logger::info("ChatClient: connected to {}", _url);
 			} else if (msg->type == ix::WebSocketMessageType::Close) {
 				_connected = false;
 				_disconnectedAt = std::chrono::steady_clock::now();
-				logger::warn("ChatClient: disconnected (code={} reason={})", msg->closeInfo.code, msg->closeInfo.reason);
+				logger::warn("ChatClient: disconnected (code={} reason='{}')", msg->closeInfo.code, msg->closeInfo.reason);
 			} else if (msg->type == ix::WebSocketMessageType::Error) {
 				_connected = false;
 				_disconnectedAt = std::chrono::steady_clock::now();
-				logger::warn("ChatClient: error - {}", msg->errorInfo.reason);
+				logger::error("ChatClient: websocket error — {}", msg->errorInfo.reason);
 			}
 		});
 
 		_webSocket->start();
+		logger::info("ChatClient: websocket started, connecting...");
 	}
 
 	void ChatClient::Shutdown()
@@ -156,8 +176,13 @@ namespace FalloutChat
 	void ChatClient::SendRename(const std::string& name)
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
-		if (_webSocket && _connected)
+		if (_webSocket && _connected) {
+			logger::info("ChatClient: sending rename to '{}'", name);
 			_webSocket->send("[RENAME]" + std::to_string(_steamID) + "|" + name);
+		} else {
+			logger::warn("ChatClient: SendRename skipped — not connected (ws={} connected={})",
+				(void*)_webSocket.get(), _connected);
+		}
 	}
 
 	void ChatClient::Send(const std::string& text, const std::string& location)
@@ -167,7 +192,11 @@ namespace FalloutChat
 			std::string payload = std::to_string(_steamID) + "|" + _username;
 			if (!location.empty()) payload += "|" + location;
 			payload += ": " + text;
+			logger::info("ChatClient: sending {} bytes", payload.size());
 			_webSocket->send(payload);
+		} else {
+			logger::warn("ChatClient: Send skipped — not connected (ws={} connected={})",
+				(void*)_webSocket.get(), _connected);
 		}
 	}
 
