@@ -26,7 +26,7 @@
   /* ── Chat Container ────────────────────────────────────────────── */
   .chat-container {
     display: flex;
-    position: absolute; bottom: 20px; left: 20px;
+    position: absolute; bottom: 20px; right: 20px;
     width: 450px; height: 350px;
     background: rgba(0, 0, 0, var(--bg-opacity));
     border-radius: 4px;
@@ -106,6 +106,15 @@
   .msg-time   { color: #888; font-size: 12px; margin-right: 4px; }
   .msg-sender { font-weight: 600; color: #4ade80; }
   .msg-text   { color: #e2e8f0; }
+
+  .msg-img {
+    display: block;
+    max-width: 280px;
+    max-height: 200px;
+    margin-top: 4px;
+    border-radius: 4px;
+    object-fit: contain;
+  }
 
   .msg-row.system .msg-sender { color: #fbbf24; }
   .msg-row.system .msg-text   { color: #fcd34d; }
@@ -305,6 +314,34 @@
     z-index: 1;
     flex-shrink: 0;
   }
+
+  /* ── Toast popup ─────────────────────────────────────────────────────── */
+  .toast-popup {
+    position: absolute; bottom: 20px; right: 20px;
+    width: 320px;
+    background: rgba(10, 10, 10, 0.88);
+    border: 1px solid rgba(74, 222, 128, 0.35);
+    border-radius: 6px;
+    padding: 9px 13px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 200;
+    text-shadow: 1px 1px 1px rgba(0,0,0,0.9);
+  }
+  .toast-popup.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .toast-popup.hiding {
+    opacity: 0;
+    transform: translateY(-24px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .toast-sender { font-size: 12px; color: #4ade80; font-weight: 600; }
+  .toast-sender.emote { color: #c084fc; font-style: italic; }
+  .toast-text { font-size: 12px; color: #e2e8f0; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body class="chat-startup passive-mode">
@@ -325,7 +362,8 @@
     <li>Press <span>F11</span> at any time to toggle the chat.</li>
     <li>Type <span>/me [action]</span> to send an emote (e.g. <i>* Survivor waves</i>).</li>
     <li>Click the <span>Gear Icon</span> to change your display name, font size, or opacity.</li>
-    <li>While playing, the chat fades out passively. You can completely hide it by unchecking <span>Enable Chat</span> in settings.</li>
+    <li><span>Drag</span> the header bar to reposition the chat window anywhere on screen.</li>
+    <li><span>Resize</span> by dragging the triangle grip in the bottom-right corner.</li>
   </ul>
   <div class="modal-actions">
     <button class="btn btn-primary" onclick="acceptTutorial()">Got It</button>
@@ -334,6 +372,11 @@
 
 <div id="hudReminder" class="hud-reminder">
   Press F11 to open Global Chat
+</div>
+
+<div id="toastPopup" class="toast-popup">
+  <div class="toast-sender" id="toastSender"></div>
+  <div class="toast-text"   id="toastText"></div>
 </div>
 
 <div id="chatBox" class="chat-container">
@@ -437,6 +480,53 @@
   // ── Helpers ───────────────────────────────────────────────────────────────
   function escapeHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Splits raw message text on image/tenor URLs and returns HTML with inline <img> tags.
+  // Tenor view URLs are resolved asynchronously via Tenor's anonymous API.
+  var MEDIA_RE = /(https?:\/\/tenor\.com\/view\/\S+|https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp)(?:\?\S*)?)/i;
+  var TENOR_KEY = 'LIVDSRZULELA';
+  var tenorSeq  = 0;
+  var tenorPending = [];
+
+  function renderText(raw) {
+    var parts = String(raw).split(MEDIA_RE);
+    var html = '';
+    for (var i = 0; i < parts.length; i++) {
+      if (i % 2 === 1) {
+        var url = parts[i];
+        if (/tenor\.com\/view\//i.test(url)) {
+          var uid = 'ti' + (++tenorSeq);
+          html += '<img id="' + uid + '" class="msg-img" style="display:none" alt="GIF">';
+          tenorPending.push({ id: uid, url: url });
+        } else {
+          html += '<img src="' + escapeHtml(url) + '" class="msg-img" onerror="this.style.display=\'none\'">';
+        }
+      } else {
+        html += escapeHtml(parts[i]);
+      }
+    }
+    return html;
+  }
+
+  function flushTenorPending() {
+    var pending = tenorPending.splice(0);
+    pending.forEach(function(item) {
+      var m = item.url.match(/(\d+)\s*$/);
+      if (!m) return;
+      fetch('https://tenor.googleapis.com/v2/posts?ids=' + m[1] + '&key=' + TENOR_KEY + '&limit=1')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var result = data && data.results && data.results[0];
+          if (!result) return;
+          var fmt = result.media_formats;
+          var src = (fmt.gif && fmt.gif.url) || (fmt.tinygif && fmt.tinygif.url);
+          if (!src) return;
+          var el = document.getElementById(item.id);
+          if (el) { el.src = src; el.style.display = ''; }
+        })
+        .catch(function(e) { console.warn('tenor: failed to resolve ' + item.url + ' — ' + e); });
+    });
   }
   function nowTs() {
     var n = new Date();
@@ -621,10 +711,15 @@
     document.body.classList.remove('passive-mode');
     document.body.classList.add('chat-active');
 
-    // Always dismiss the hint when chat opens
+    // Always dismiss the hint and any toast when chat opens
     clearTimeout(hudDisplayTimer);
     document.getElementById('hudReminder').classList.remove('visible');
+    clearToast();
     if (!g_introDismissed) g_introDismissed = true;
+
+    // Scroll to latest message
+    var list = document.getElementById('messagesList');
+    if (list) list.scrollTop = list.scrollHeight;
 
     if (!g_privacyAccepted) {
       document.body.classList.add('modal-active');
@@ -659,6 +754,86 @@
     else console.error('openURL: OpenURL not available');
   }
 
+  // ── Toast notifications ───────────────────────────────────────────────────
+  var g_historyReady  = false;
+  var toastQueue      = [];
+  var toastBusy       = false;
+  var toastShowTimer  = null;
+  var toastHideTimer  = null;
+  var TOAST_DISPLAY_MS = 8000;
+  var TOAST_FADE_MS    = 600;
+
+  window.markHistoryDone = function() {
+    g_historyReady = true;
+    console.log('toast: history loaded, live toasts enabled');
+  };
+
+  // Strip long numeric Discord user IDs from display names (e.g. "[Discord] 123456789 nomad" → "[Discord] nomad")
+  function toastDisplayName(sender) {
+    return String(sender).replace(/\b\d{15,20}\b\s*/g, '').trim();
+  }
+
+  // Returns true only if the message timestamp (HH:MM:SS) is within the last 2 minutes.
+  // History messages are always old; live messages are seconds old.
+  function isRecentMessage(ts) {
+    var parts = String(ts).split(':');
+    if (parts.length < 2) return true;
+    var h = parseInt(parts[0], 10), m = parseInt(parts[1], 10), s = parseInt(parts[2] || '0', 10);
+    if (isNaN(h) || isNaN(m) || isNaN(s)) return true;
+    var now = new Date();
+    var msgSecs = h * 3600 + m * 60 + s;
+    var nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    var diff = nowSecs - msgSecs;
+    if (diff < 0) diff += 86400; // midnight wrap
+    return diff < 120;
+  }
+
+  function showToast(sender, text, isEmote) {
+    if (!g_historyReady) return;
+    if (document.body.classList.contains('chat-active')) return;
+    toastQueue.push({ sender: sender, text: text, isEmote: isEmote });
+    console.log('toast: queued "' + sender + '" (queue=' + toastQueue.length + ')');
+    if (!toastBusy) processToastQueue();
+  }
+
+  function processToastQueue() {
+    if (toastQueue.length === 0) { toastBusy = false; return; }
+    if (document.body.classList.contains('chat-active')) { toastQueue = []; toastBusy = false; return; }
+
+    toastBusy = true;
+    var item     = toastQueue.shift();
+    var toast    = document.getElementById('toastPopup');
+    var senderEl = document.getElementById('toastSender');
+    var textEl   = document.getElementById('toastText');
+
+    var displayName  = toastDisplayName(item.sender);
+    toast.classList.remove('hiding');
+    senderEl.className   = 'toast-sender' + (item.isEmote ? ' emote' : '');
+    senderEl.textContent = item.isEmote ? ('* ' + displayName) : (displayName + ':');
+    textEl.textContent   = item.text;
+    toast.classList.add('visible');
+    console.log('toast: showing "' + item.sender + '" (' + toastQueue.length + ' queued)');
+
+    toastShowTimer = setTimeout(function() {
+      toast.classList.add('hiding');
+      toastHideTimer = setTimeout(function() {
+        toast.classList.remove('visible');
+        toast.classList.remove('hiding');
+        processToastQueue();
+      }, TOAST_FADE_MS);
+    }, TOAST_DISPLAY_MS);
+  }
+
+  function clearToast() {
+    clearTimeout(toastShowTimer);
+    clearTimeout(toastHideTimer);
+    toastQueue = [];
+    toastBusy  = false;
+    var toast = document.getElementById('toastPopup');
+    toast.classList.remove('visible');
+    toast.classList.remove('hiding');
+  }
+
   // ── Messages ──────────────────────────────────────────────────────────────
   var _msgCount = 0;
 
@@ -673,7 +848,6 @@
   }
 
   function receiveMessage(sender, text, timestamp, isEmote) {
-    if (!chatEnabled) return;
     _msgCount++;
     console.log('msg #' + _msgCount + ': sender="' + sender + '" ts=' + timestamp + ' emote=' + !!isEmote + ' len=' + String(text).length);
     var list = document.getElementById('messagesList');
@@ -682,7 +856,7 @@
       var row = document.createElement('div');
       
       var safeSender = formatAdmin(escapeHtml(sender));
-      var safeText = formatAdmin(escapeHtml(text));
+      var safeText   = formatAdmin(renderText(text));
 
       if (isEmote) {
         row.className = 'msg-row emote';
@@ -700,6 +874,7 @@
                       + '<span class="msg-text">' + safeText + '</span>';
       }
       list.appendChild(row);
+      if (tenorPending.length) flushTenorPending();
 
       // Keep only the last 200 messages
       while (list.children.length > 200) {
@@ -707,6 +882,11 @@
       }
 
       list.scrollTop = list.scrollHeight;
+
+      // Show a floating toast only for live messages (recent timestamp) when the chat panel is closed
+      if (document.body.classList.contains('passive-mode') && sender.toUpperCase() !== 'SYSTEM' && isRecentMessage(timestamp)) {
+        showToast(sender, text, isEmote);
+      }
     } catch (err) {
       console.error('receiveMessage: exception — ' + err);
     }

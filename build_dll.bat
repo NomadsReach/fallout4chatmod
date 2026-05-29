@@ -4,8 +4,12 @@ setlocal
 set MSBUILD="C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe"
 set VCPKG_ROOT=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg
 set VCTOOLS_VERSION=14.44.35207
-set DEPLOY_DIR=E:\Modlists\Fallen World Alpha 2\mods\FalloutChat\F4SE\Plugins
-set VIEWS_DIR=E:\Modlists\Fallen World Alpha 2\mods\FalloutChat\PrismaUI_F4\views
+
+set DEPLOY_DIR_1=E:\Modlists\Fallen World Alpha 2\mods\FalloutChat\F4SE\Plugins
+set VIEWS_DIR_1=E:\Modlists\Fallen World Alpha 2\mods\FalloutChat\PrismaUI_F4\views
+
+set DEPLOY_DIR_2=D:\Games\ModlistDownloads\mods\FalloutChat\F4SE\Plugins
+set VIEWS_DIR_2=D:\Games\ModlistDownloads\mods\FalloutChat\PrismaUI_F4\views
 
 if not exist "build" (
     echo Configuring CMake...
@@ -23,11 +27,17 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 
-echo Deploying DLL and assets...
-if not exist "%DEPLOY_DIR%" mkdir "%DEPLOY_DIR%"
-if not exist "%VIEWS_DIR%" mkdir "%VIEWS_DIR%"
-copy /Y "build\Release\FalloutChat.dll" "%DEPLOY_DIR%\FalloutChat.dll"
-copy /Y "assets\views\chat.html" "%VIEWS_DIR%\chat.html"
+echo Deploying to Fallen World Alpha 2...
+if not exist "%DEPLOY_DIR_1%" mkdir "%DEPLOY_DIR_1%"
+if not exist "%VIEWS_DIR_1%" mkdir "%VIEWS_DIR_1%"
+copy /Y "build\Release\FalloutChat.dll" "%DEPLOY_DIR_1%\FalloutChat.dll"
+copy /Y "assets\views\chat.html" "%VIEWS_DIR_1%\chat.html"
+
+echo Deploying to ModlistDownloads...
+if not exist "%DEPLOY_DIR_2%" mkdir "%DEPLOY_DIR_2%"
+if not exist "%VIEWS_DIR_2%" mkdir "%VIEWS_DIR_2%"
+copy /Y "build\Release\FalloutChat.dll" "%DEPLOY_DIR_2%\FalloutChat.dll"
+copy /Y "assets\views\chat.html" "%VIEWS_DIR_2%\chat.html"
 
 echo.
 echo Build and Deployment Successful!

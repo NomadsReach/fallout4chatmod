@@ -181,9 +181,15 @@ namespace FalloutChat
 
 			logger::info("ChatUI: all JS listeners registered");
 
-			// Flush messages and online count that arrived before the view was ready
+			// Flush messages and online count that arrived before the view was ready.
+			// markHistoryDone fires in the same task so all history is rendered before
+			// live toasts are enabled — prevents history flood from triggering popups.
 			if (auto* ti = F4SE::GetTaskInterface()) {
-				ti->AddTask([]() { OnMessagesReceived(); });
+				ti->AddTask([]() {
+					OnMessagesReceived();
+					if (g_api && g_api->IsValid(g_view))
+						g_api->Invoke(g_view, "if(window.markHistoryDone) window.markHistoryDone();");
+				});
 				int cachedCount = ChatClient::GetSingleton().GetOnlineCount();
 				ti->AddTask([cachedCount]() { UpdateOnlineCount(cachedCount); });
 			} else {
