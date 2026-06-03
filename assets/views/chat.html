@@ -274,7 +274,7 @@
 
   /* ── Privacy modal ───────────────────────────────────────────────────── */
   .privacy-modal {
-    position: absolute; top: 50%; left: 50%;
+    position: fixed; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     width: 400px;
     background: rgba(20, 20, 20, 0.97);
@@ -306,7 +306,7 @@
   .hud-reminder.visible { opacity: 1; }
 
   .tutorial-modal {
-    position: absolute; top: 50%; left: 50%;
+    position: fixed; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     width: 420px;
     background: rgba(20, 20, 20, 0.97);
@@ -623,9 +623,9 @@
   }
 
   // ── Onboarding & HUD ──────────────────────────────────────────────────────
-  var g_introDismissed = true;
-  var g_privacyAccepted = true;
-  var g_tutorialSeen = true;
+  var g_introDismissed = false;
+  var g_privacyAccepted = false;
+  var g_tutorialSeen = false;
   var hudDisplayTimer = null;
 
   window.setupOnboarding = function(intro, priv, tut) {
