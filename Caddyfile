@@ -1,0 +1,3 @@
+chat.fallenworld.nexus {
+    reverse_proxy /ws localhost:3000
+}
