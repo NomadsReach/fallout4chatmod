@@ -906,6 +906,13 @@
         console.log('input: send len=' + val.length);
         if (typeof window.SendMessage === 'function') window.SendMessage(val);
         else console.error('input: SendMessage not available');
+        // Server does not echo messages back to the sender — render locally.
+        // /name is handled by C++ which calls addSystemMessage; skip it here.
+        if (val.startsWith('/me ')) {
+          receiveMessage(g_localUsername, val.slice(4), nowTs(), true);
+        } else if (!val.startsWith('/name ')) {
+          receiveMessage(g_localUsername, val, nowTs(), false);
+        }
       }
       input.value = '';
       updateCharCount(input);
