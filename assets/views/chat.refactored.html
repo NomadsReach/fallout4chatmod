@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FalloutChat</title>
+  <link rel="stylesheet" href="chat.css">
+</head>
+<body class="chat-startup passive-mode">
+
+  <!-- Privacy Policy Modal -->
+  <div id="privacyPolicy" class="privacy-modal">
+    <div class="modal-title">Privacy Policy</div>
+    <p>Before joining the chat, please review our Data Privacy Policy.<br><br>
+       Your messages and username may be stored and reviewed by server administrators for moderation purposes. We do not sell your data.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="declinePrivacy()">Decline</button>
+      <button class="btn btn-primary"   onclick="acceptPrivacy()">I Agree</button>
+    </div>
+  </div>
+
+  <!-- Tutorial Modal -->
+  <div id="tutorialModal" class="tutorial-modal">
+    <div class="modal-title">Welcome to Global Chat!</div>
+    <ul>
+      <li>Press <span>F11</span> at any time to toggle the chat.</li>
+      <li>Type <span>/me [action]</span> to send an emote (e.g. <i>* Survivor waves</i>).</li>
+      <li>Click the <span>Gear Icon</span> to change your display name, font size, or opacity.</li>
+      <li><span>Drag</span> the header bar to reposition the chat window anywhere on screen.</li>
+      <li><span>Resize</span> by dragging the triangle grip in the bottom-right corner.</li>
+    </ul>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="acceptTutorial()">Got It</button>
+    </div>
+  </div>
+
+  <!-- HUD Reminder (F11 Hotkey Hint) -->
+  <div id="hudReminder" class="hud-reminder">
+    Press F11 to open Global Chat
+  </div>
+
+  <!-- Toast Notification Popup -->
+  <div id="toastPopup" class="toast-popup">
+    <div class="toast-sender" id="toastSender"></div>
+    <div class="toast-text"   id="toastText"></div>
+  </div>
+
+  <!-- Main Chat Container -->
+  <div id="chatBox" class="chat-container">
+
+    <!-- Chat Header with Online Count and Action Buttons -->
+    <div class="chat-header" id="chatHeader">
+      <div style="display:flex;align-items:center;">
+        <div class="brand">Global Chat</div>
+        <span class="online-count" id="onlineCount">
+          <span class="online-dot"></span>
+          <span><span id="onlineNum">0</span> online</span>
+        </span>
+      </div>
+      <div class="header-actions">
+        <!-- Settings Button -->
+        <button class="icon-btn" onclick="toggleSettings(event)" title="Settings">
+          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        </button>
+        <!-- Discord Button -->
+        <button class="icon-btn" onclick="openDiscord()" title="Discord">
+          <svg viewBox="0 0 24 24"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286z"/></svg>
+        </button>
+        <!-- Website Button -->
+        <button class="icon-btn" onclick="openWebsite()" title="Website">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages Area -->
+    <div class="messages" id="messagesList"></div>
+
+    <!-- Input Area -->
+    <div class="input-area" style="display:flex;align-items:center;">
+      <input type="text" id="chatInput" class="chat-input" placeholder="Press Enter to send..." onkeydown="handleInput(event)" oninput="updateCharCount(this)">
+      <span id="charCount" class="char-count"></span>
+    </div>
+
+    <!-- Resize Handle (bottom-right corner) -->
+    <div class="resize-handle" id="resizeHandle"></div>
+
+  </div>
+
+  <!-- Settings Modal Overlay -->
+  <div id="settingsOverlay" class="settings-overlay">
+    <div class="settings-modal">
+      <div class="settings-modal-header">
+        <span class="settings-modal-title">Chat Settings</span>
+        <button class="close-btn" onclick="closeSettings()">&times;</button>
+      </div>
+      <div class="settings-body">
+
+        <!-- Account Section -->
+        <div class="settings-group">
+          <div class="settings-group-label">Account</div>
+          <div class="settings-row">
+            <label class="settings-label">Display name</label>
+            <input type="text" id="usernameInput" class="settings-input" placeholder="Your name" onkeydown="usernameKeydown(event)">
+            <button class="btn-sm" onclick="applyUsername()">Set</button>
+          </div>
+        </div>
+
+        <hr class="settings-divider">
+
+        <!-- Appearance Section -->
+        <div class="settings-group">
+          <div class="settings-group-label">Appearance</div>
+          <div class="settings-slider-row">
+            <span class="settings-label">Font size</span>
+            <input type="range" id="fontSlider" min="10" max="20" step="1" value="14" oninput="onFontSize(this.value)">
+            <span class="slider-value" id="fontVal">14px</span>
+          </div>
+          <div class="settings-slider-row">
+            <span class="settings-label">Opacity</span>
+            <input type="range" id="opacitySlider" min="10" max="100" step="5" value="60" oninput="onOpacity(this.value)">
+            <span class="slider-value" id="opacityVal">60%</span>
+          </div>
+          <div class="settings-toggle-row">
+            <span class="toggle-label">Show chat overlay</span>
+            <div class="toggle-switch on" id="chatEnabledToggle" onclick="toggleChatEnabled()"></div>
+          </div>
+        </div>
+
+        <hr class="settings-divider">
+
+        <!-- Commands Section -->
+        <div class="settings-group">
+          <div class="settings-group-label">Commands</div>
+          <ul class="cmd-list">
+            <li><code>/name &lt;username&gt;</code> — change display name</li>
+            <li><code>/me &lt;action&gt;</code> — send an emote</li>
+            <li><code>F11</code> — toggle chat</li>
+            <li><code>ESC</code> — close chat</li>
+          </ul>
+        </div>
+
+        <hr class="settings-divider">
+
+        <!-- External Links Section -->
+        <div class="settings-links">
+          <button class="link-btn" onclick="openDiscord()">Discord</button>
+          <button class="link-btn" onclick="openWebsite()">Website</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Load compiled TypeScript bundle -->
+  <!-- If using esbuild/webpack, this will be the bundled JS -->
+  <script src="dist/chat-bundle.js"></script>
+
+  <!-- Fallback: if bundle doesn't exist, load module files (for development) -->
+  <!-- IMPORTANT: store.ts MUST load first, then chat.ts -->
+  <script type="module">
+    import './store.ts';
+    import './chat.ts';
+  </script>
+
+</body>
+</html>

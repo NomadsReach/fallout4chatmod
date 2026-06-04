@@ -1,0 +1,354 @@
+
+  :root {
+    --font-size: 14px;
+    --bg-opacity: 0.6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 100vw; height: 100vh;
+    font-family: 'Segoe UI', sans-serif;
+    color: #fff;
+    overflow: hidden;
+    background: transparent;
+    pointer-events: none;
+    cursor: none !important;
+  }
+  
+  /* Hide the UI cursor everywhere to prevent double cursor since the game renders its own */
+  * { cursor: none !important; }
+
+  /* ── Chat Container ────────────────────────────────────────────── */
+  .chat-container {
+    display: flex;
+    position: absolute; bottom: 20px; right: 20px;
+    width: 450px; height: 350px;
+    background: rgba(0, 0, 0, var(--bg-opacity));
+    border-radius: 4px;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 250px;
+    min-height: 150px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    pointer-events: auto;
+    user-select: none;
+    transition: background 0.3s, border-color 0.3s;
+  }
+
+  /* Force hide when disabled (in passive mode) or when modal is active */
+  body.chat-disabled.passive-mode .chat-container,
+  body.modal-active .chat-container { display: none !important; }
+
+  /* Passive mode: hide container entirely — nothing visible until F11 is pressed */
+  body.passive-mode .chat-container { display: none; }
+  
+  /* Initial hidden state before setup is complete */
+  body.chat-startup .chat-container { display: none; }
+
+  .chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .brand { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .online-count {
+    font-size: 11px; color: #4ade80; 
+    margin-left: 8px;
+    background: rgba(74, 222, 128, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    display: inline-flex; align-items: center;
+  }
+  .online-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #4ade80; display: inline-block; flex-shrink: 0;
+    margin-right: 6px;
+  }
+
+  .header-actions { display: flex; gap: 8px; }
+
+  .icon-btn {
+    background: none; border: none; color: #aaa;
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .icon-btn:hover { color: #fff; }
+  .icon-btn svg { width: 14px; height: 14px; fill: currentColor; pointer-events: none; }
+
+  .messages {
+    flex-grow: 1; overflow-y: auto;
+    padding: 8px 10px;
+    display: flex; flex-direction: column; gap: 2px;
+    font-size: var(--font-size);
+    line-height: 1.4;
+    text-shadow: 1px 1px 1px rgba(0,0,0,0.8);
+  }
+
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+  .messages::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+  .msg-row { word-break: break-word; }
+  .msg-time   { color: #888; font-size: 12px; margin-right: 4px; }
+  .msg-sender { font-weight: 600; color: #4ade80; }
+  .msg-text   { color: #e2e8f0; }
+
+
+  .msg-row.system .msg-sender { color: #fbbf24; }
+  .msg-row.system .msg-text   { color: #fcd34d; }
+  .msg-row.emote  .msg-text   { color: #e9d5ff; font-style: italic; }
+  .msg-row.emote  .msg-sender { color: #c084fc; font-style: italic; }
+  .msg-row.mention {
+    background: rgba(250, 204, 21, 0.07);
+    border-left: 2px solid rgba(250, 204, 21, 0.5);
+    padding-left: 6px;
+    margin-left: -8px;
+    border-radius: 2px;
+  }
+
+  /* ── Connection dot states ──────────────────────────────────────────── */
+  .online-dot.reconnecting { background: #f59e0b; animation: dot-pulse 1s ease-in-out infinite; }
+  .online-dot.disconnected { background: #ef4444; }
+  @keyframes dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  /* ── Character counter ──────────────────────────────────────────────── */
+  .char-count { font-size: 10px; color: #555; flex-shrink: 0; margin-left: 6px; transition: color 0.2s; pointer-events: none; }
+  .char-count.warn   { color: #f59e0b; }
+  .char-count.danger { color: #ef4444; }
+
+  /* ── Mention toast ──────────────────────────────────────────────────── */
+  .toast-popup.mention { border-color: rgba(250, 204, 21, 0.6); }
+  .toast-popup.mention .toast-sender { color: #facc15; }
+
+  .input-area {
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.6);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    user-select: text;
+  }
+
+  .chat-input {
+    width: 100%; background: transparent; border: none;
+    color: #fff; font-family: inherit; font-size: var(--font-size);
+    outline: none; user-select: text;
+  }
+  .chat-input::placeholder { color: #888; }
+
+  /* ── Settings modal (full overlay) ─────────────────────────────────── */
+  .settings-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: auto;
+    z-index: 500;
+  }
+  .settings-overlay.open { display: block; }
+
+  .settings-modal {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 320px;
+    background: #1a1a1a;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.8);
+  }
+
+  .settings-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: #222;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .settings-modal-title {
+    font-size: 14px; font-weight: 600; color: #fff;
+  }
+  .close-btn {
+    background: none; border: none; color: #888;
+    font-size: 20px; line-height: 1; padding: 0;
+  }
+  .close-btn:hover { color: #fff; }
+
+  .settings-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .settings-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .settings-group-label {
+    font-size: 10px; font-weight: 700; color: #666;
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+
+  .settings-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .settings-label { font-size: 13px; color: #bbb; flex: 1; }
+
+  .settings-input {
+    flex: 2; background: #111;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px; color: #fff; font-family: inherit;
+    font-size: 13px; padding: 6px 8px; outline: none; min-width: 0;
+  }
+  .settings-input:focus { border-color: rgba(74, 222, 128, 0.5); }
+  .settings-input::placeholder { color: #555; }
+
+  .btn-sm {
+    padding: 6px 12px; border-radius: 4px;
+    font-family: inherit; font-weight: 600; font-size: 12px;
+    border: none; background: #4ade80; color: #000; flex-shrink: 0;
+  }
+  .btn-sm:hover { background: #22c55e; }
+
+  .settings-slider-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .settings-slider-row .settings-label { min-width: 60px; flex: none; }
+  input[type=range] {
+    flex: 1; height: 4px; accent-color: #4ade80;
+    outline: none; border: none; padding: 0;
+  }
+  .slider-value { font-size: 12px; color: #666; min-width: 32px; text-align: right; }
+
+  .settings-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .toggle-label { font-size: 13px; color: #bbb; }
+  .toggle-switch {
+    width: 36px; height: 20px; background: #333;
+    border-radius: 10px; position: relative; flex-shrink: 0;
+  }
+  .toggle-switch.on { background: #4ade80; }
+  .toggle-switch::after {
+    content: ''; position: absolute;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #fff; top: 3px; left: 3px;
+    transition: left 0.15s;
+  }
+  .toggle-switch.on::after { left: 19px; }
+
+  .settings-divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); }
+
+  .cmd-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .cmd-list li { font-size: 12px; color: #888; line-height: 1.4; }
+  .cmd-list li code { color: #4ade80; font-family: 'Consolas', monospace; }
+
+  .settings-links {
+    display: flex; gap: 8px;
+  }
+  .link-btn {
+    flex: 1; text-align: center; padding: 7px 0;
+    border-radius: 4px; font-size: 12px; font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1); color: #aaa;
+  }
+  .link-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+  /* ── Privacy modal ───────────────────────────────────────────────────── */
+  .privacy-modal {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 400px;
+    background: rgba(20, 20, 20, 0.97);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px; padding: 24px;
+    z-index: 300; display: none; pointer-events: auto;
+  }
+  .privacy-modal.active { display: block; }
+  .modal-title { color: #fff; font-size: 18px; font-weight: 600; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+  .privacy-modal p { font-size: 13px; line-height: 1.5; color: #ccc; margin-bottom: 20px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .btn { padding: 8px 16px; border-radius: 4px; font-family: inherit; font-weight: 500; font-size: 13px; border: none; }
+  .btn-primary   { background: #4ade80; color: #000; }
+  .btn-primary:hover { background: #22c55e; }
+  .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+  .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+
+  /* ── HUD Reminder & Tutorial ─────────────────────────────────────────── */
+  .hud-reminder {
+    position: absolute; top: 40px; right: 40px;
+    background: rgba(15, 15, 15, 0.85); backdrop-filter: blur(8px);
+    border: 1px solid rgba(74, 222, 128, 0.4);
+    border-radius: 8px; padding: 16px 20px;
+    color: #4ade80; font-size: 16px; font-weight: 600;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.8s ease-in-out;
+  }
+  .hud-reminder.visible { opacity: 1; }
+
+  .tutorial-modal {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 420px;
+    background: rgba(20, 20, 20, 0.97);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px; padding: 24px;
+    z-index: 300; display: none; pointer-events: auto;
+  }
+  .tutorial-modal.active { display: block; }
+  .tutorial-modal ul { color: #ccc; font-size: 13px; line-height: 1.6; padding-left: 20px; margin-bottom: 20px; }
+  .tutorial-modal li { margin-bottom: 8px; }
+  .tutorial-modal li span { color: #4ade80; font-family: monospace; }
+
+  .resize-handle {
+    position: absolute; bottom: 0; right: 0;
+    width: 14px; height: 14px;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.15) 50%);
+    z-index: 1;
+    flex-shrink: 0;
+  }
+
+  /* ── Toast popup ─────────────────────────────────────────────────────── */
+  .toast-popup {
+    position: absolute; bottom: 20px; right: 20px;
+    width: 320px;
+    background: rgba(10, 10, 10, 0.88);
+    border: 1px solid rgba(74, 222, 128, 0.35);
+    border-radius: 6px;
+    padding: 9px 13px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 200;
+    text-shadow: 1px 1px 1px rgba(0,0,0,0.9);
+  }
+  .toast-popup.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .toast-popup.hiding {
+    opacity: 0;
+    transform: translateY(-24px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .toast-sender { font-size: 12px; color: #4ade80; font-weight: 600; }
+  .toast-sender.emote { color: #c084fc; font-style: italic; }
+  .toast-text { font-size: 12px; color: #e2e8f0; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
