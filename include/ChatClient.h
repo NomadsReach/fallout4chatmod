@@ -21,14 +21,14 @@ namespace FalloutChat
 	public:
 		static ChatClient& GetSingleton();
 
-		void Initialize(const std::string& url, const std::string& username, uint64_t steamID);
+		void Initialize(const std::string& url, const std::string& username, const std::string& userID);
 		void Shutdown();
 
 		void Send(const std::string& text, const std::string& location = "");
 		void SendRename(const std::string& name);
 		void SetUsername(const std::string& name);
 		std::string GetUsername() const;
-		void SetSteamID(uint64_t id);
+		void SetUserID(const std::string& id);
 		std::vector<ChatMessage> GetNewMessages();
 		bool IsConnected() const;
 		int  GetOnlineCount() const;
@@ -39,7 +39,7 @@ namespace FalloutChat
 
 		std::string _url;
 		std::string _username;
-		uint64_t _steamID{ 0 };
+		std::string _userID;
 		bool _connected{ false };
 		int  _onlineCount{ 0 };
 		std::chrono::steady_clock::time_point _disconnectedAt{};

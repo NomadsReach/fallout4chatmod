@@ -10,6 +10,11 @@ const BOT_SECRET     = process.env.BOT_SECRET || '';
 
 const trustedClients = new WeakSet(); // authenticated bot connections
 
+// Banned user IDs (hex64 format: "a1b2c3d4e5f6g7h8")
+const bannedUserIDs = [
+  // Add banned user IDs here
+];
+
 // { ts: 'HH:MM:SS', raw: '<broadcast string>' }
 const history = [];
 const clients = new Set();
@@ -114,7 +119,7 @@ Bun.serve({
         return;
       }
 
-      // 5. Parse: steamID|username[|location]: text
+      // 5. Parse: userID|username[|location]: text
       const ci = msg.indexOf(': ');
       if (ci === -1) {
         console.warn(`[drop] no ': ' delimiter`);
@@ -126,17 +131,22 @@ Bun.serve({
       if (!text || text.length > 500) return;
 
       const parts   = prefix.split('|');
-      const steamId = sanitize(parts[0] ?? '0');
+      const userId = sanitize(parts[0] ?? '');
       const rawName = sanitize(parts[1] ?? 'Player').slice(0, MAX_USERNAME_LEN);
+
+      // Check if user is banned by their ID
+      if (bannedUserIDs.includes(userId)) {
+        console.warn(`[ban] banned user ${userId} attempted to send message`);
+        ws.close(4000, 'Banned');
+        return;
+      }
 
       // Trusted bot: keep username as-is (preserves [Discord] prefix)
       // Untrusted:   strip any spoofed system prefixes
       const username = trustedClients.has(ws)
         ? rawName
         : (stripSpoofedPrefixes(rawName) || 'Player');
-      const display = trustedClients.has(ws)
-        ? username
-        : (steamId === '0' ? `[Web] ${username}` : username);
+      const display = username;
 
       let formatted;
       if (text.startsWith('/me ')) {

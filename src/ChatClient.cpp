@@ -14,7 +14,7 @@ namespace FalloutChat
 		return instance;
 	};
 
-	void ChatClient::Initialize(const std::string& url, const std::string& username, uint64_t steamID)
+	void ChatClient::Initialize(const std::string& url, const std::string& username, const std::string& userID)
 	{
 		// Capture the old websocket outside the lock so we can stop() it without holding _mutex.
 		// stop() blocks until the bg thread exits; that thread acquires _mutex inside the message
@@ -29,7 +29,7 @@ namespace FalloutChat
 			}
 			_url = url;
 			_username = username;
-			_steamID = steamID;
+			_userID = userID;
 		}
 
 		if (oldSocket) {
@@ -40,8 +40,8 @@ namespace FalloutChat
 
 		std::lock_guard<std::mutex> lock(_mutex);
 
-		logger::info("ChatClient: initializing — url='{}' username='{}' steamID={}",
-			url, username, steamID);
+		logger::info("ChatClient: initializing — url='{}' username='{}' userID={}",
+			url, username, userID);
 
 		ix::initNetSystem();
 
@@ -209,7 +209,7 @@ namespace FalloutChat
 		std::lock_guard<std::mutex> lock(_mutex);
 		if (_webSocket && _connected) {
 			logger::info("ChatClient: sending rename to '{}'", name);
-			_webSocket->send("[RENAME]" + std::to_string(_steamID) + "|" + name);
+			_webSocket->send("[RENAME]" + _userID + "|" + name);
 		} else {
 			logger::warn("ChatClient: SendRename skipped — not connected (ws={} connected={})",
 				(void*)_webSocket.get(), _connected);
@@ -220,7 +220,7 @@ namespace FalloutChat
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
 		if (_webSocket && _connected) {
-			std::string payload = std::to_string(_steamID) + "|" + _username;
+			std::string payload = _userID + "|" + _username;
 			if (!location.empty()) payload += "|" + location;
 			payload += ": " + text;
 			logger::info("ChatClient: sending {} bytes", payload.size());
@@ -250,10 +250,10 @@ namespace FalloutChat
 		_username = name;
 	}
 
-	void ChatClient::SetSteamID(uint64_t id)
+	void ChatClient::SetUserID(const std::string& id)
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
-		_steamID = id;
+		_userID = id;
 	}
 
 	std::string ChatClient::GetUsername() const

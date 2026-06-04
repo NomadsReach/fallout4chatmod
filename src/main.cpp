@@ -1,6 +1,7 @@
 #include "PCH.h"
 #include "ChatUI.h"
 #include "ChatClient.h"
+#include "UserID.h"
 #include <SimpleIni.h>
 
 CSimpleIniA ini(true, false, false);
@@ -8,52 +9,16 @@ static std::mutex g_iniMutex;
 std::string serverUrl = "wss://chat.fallenworld.nexus/ws";
 std::string username = "Player";
 bool g_privacyAccepted = false;
-std::atomic<uint64_t> g_steamID = 0;
 bool g_chatEnabled = true;
 bool g_tutorialSeen = false;
 bool g_introDismissed = false;
 int g_fontSize = 14;
 int g_bgOpacity = 60;
 
-uint64_t FetchSteamID()
-{
-	logger::info("FetchSteamID: attempting");
-	HMODULE hSteam = GetModuleHandleA("steam_api64.dll");
-	if (!hSteam) {
-		logger::warn("FetchSteamID: steam_api64.dll not loaded");
-		return 0;
-	}
-
-	auto pfnSteamUser = reinterpret_cast<void*(*)()>(GetProcAddress(hSteam, "SteamUser"));
-	if (!pfnSteamUser) {
-		logger::warn("FetchSteamID: SteamUser export not found");
-		return 0;
-	}
-
-	void* user = pfnSteamUser();
-	if (!user) {
-		logger::warn("FetchSteamID: SteamUser() returned null");
-		return 0;
-	}
-
-	// CSteamID uses hidden-pointer return (MSVC x64): call vtable slot directly
-	// so RDX points to our storage, not a garbage code-section address.
-	void** vtable = *reinterpret_cast<void***>(user);
-	using GetSteamID_fn = void*(__fastcall*)(void* self, uint64_t* result);
-	auto pfnGetSteamID = reinterpret_cast<GetSteamID_fn>(vtable[2]);
-
-	uint64_t id = 0;
-	pfnGetSteamID(user, &id);
-	if (id != 0)
-		logger::info("FetchSteamID: got {}", id);
-	else
-		logger::warn("FetchSteamID: vtable call returned 0");
-	return id;
-}
-
 void SaveUsername(const std::string& newName)
 {
 	username = newName;
+	FalloutChat::UserID::GetSingleton().SetUsername(newName);
 	std::lock_guard<std::mutex> lock(g_iniMutex);
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetValue("General", "username", newName.c_str());
@@ -175,10 +140,14 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_f
 		if (msg->type == F4SE::MessagingInterface::kGameDataReady) {
 			logger::info("F4SE: kGameDataReady — initializing chat");
 			FalloutChat::ChatUI::Initialize();
-			if (username.empty())
-				username = "Player";
-			g_steamID = FetchSteamID();
-			FalloutChat::ChatClient::GetSingleton().Initialize(serverUrl, username, g_steamID);
+
+			FalloutChat::UserID::GetSingleton().Initialize();
+			auto& userID = FalloutChat::UserID::GetSingleton();
+			std::string userIDValue = userID.GetID();
+			username = userID.GetUsername();
+			logger::info("F4SE: User ID: {} (username: {})", userIDValue, username);
+
+			FalloutChat::ChatClient::GetSingleton().Initialize(serverUrl, username, userIDValue);
 		} else if (msg->type == F4SE::MessagingInterface::kPostLoadGame) {
 			logger::info("F4SE: kPostLoadGame — creating view");
 			FalloutChat::ChatUI::CreateView();

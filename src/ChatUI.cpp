@@ -17,8 +17,6 @@ extern void SaveUsername(const std::string& newName);
 extern void SaveChatEnabled(bool enabled);
 extern void SaveFontSize(int size);
 extern void SaveOpacity(int opacity);
-extern std::atomic<uint64_t> g_steamID;
-extern uint64_t FetchSteamID();
 
 namespace FalloutChat
 {
@@ -78,21 +76,6 @@ namespace FalloutChat
 				logger::info("ChatUI: SendMessage received, len={}", text.size());
 				if (text.empty()) {
 					logger::warn("ChatUI: SendMessage ignored — empty text");
-					return;
-				}
-
-				if (g_steamID == 0) {
-					logger::info("ChatUI: SteamID not cached, attempting fetch");
-					g_steamID = FetchSteamID();
-					if (g_steamID != 0) {
-						logger::info("ChatUI: SteamID fetched late: {}", g_steamID.load());
-						ChatClient::GetSingleton().SetSteamID(g_steamID);
-					}
-				}
-
-				if (g_steamID == 0) {
-					logger::warn("ChatUI: SendMessage blocked — SteamID unavailable");
-					g_api->Invoke(g_view, "addSystemMessage('Unable to verify Steam status. Try again in a moment.')");
 					return;
 				}
 

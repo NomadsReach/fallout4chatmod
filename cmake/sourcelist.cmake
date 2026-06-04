@@ -8,4 +8,6 @@ set(SOURCES
 	src/KeyHandler.h
 	src/KeyHandler.cpp
 	src/PrismaUI_F4_API.h
+	src/UserID.h
+	src/UserID.cpp
 )
