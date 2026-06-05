@@ -1,0 +1,39 @@
+[0mchecking for platform ... [32;1mwindows (x64)[0m
+[0mchecking for cl.exe ... [32;1mC:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe[0m
+[0mchecking for Microsoft C/C++ Compiler (x64) ... [32;1mok[0m
+[0mchecking for Microsoft Visual Studio (x64) version ... [32;1m2022[0m
+[0mchecking for zig ... [31;1mno[0m
+[0mchecking for nim ... [31;1mno[0m
+[0mchecking for dotnet ... [32;1mc:\program files\dotnet\dotnet.exe[0m
+[0mchecking for .NET SDK version ... [32;1m10.0.204[0m
+[0mchecking for .NET SDK directory ... [32;1mc:\program files\dotnet\sdk\10.0.204[0m
+[0mchecking for git ... [32;1mC:\Program Files\Git\cmd\git.exe[0m
+[0mchecking for gzip ... [31;1mno[0m
+[0mchecking for 7z ... [32;1mC:\Program Files\xmake\winenv\bin\7z[0m
+C:\Program Files\Git\cmd\git.exe rev-parse HEAD
+[0mchecking for xmake::spdlog ... [32;1mspdlog v1.17.0[0m
+[0mchecking for ninja ... [31;1mno[0m
+[0mchecking for ninja ... [31;1mno[0m
+[0mchecking for cmake ... [31;1mno[0m
+[0mchecking for cmake ... [31;1mno[0m
+[0mchecking for cmake ... [32;1mC:\Program Files\CMake\bin\cmake[0m
+[0mchecking for xmake::fmt ... [32;1mfmt 12.1.0[0m
+[0mchecking for xmake::zlib ... [31;1mno[0m
+[0mchecking for cl.exe ... [32;1mC:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe[0m
+[0m[2mchecking for the c compiler (cc) ... [32;1mcl.exe[0m
+[0mchecking for cl.exe ... [32;1mC:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe[0m
+[0m[2mchecking for the c++ compiler (cxx) ... [32;1mcl.exe[0m
+[0mchecking for link.exe ... [32;1mC:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\link.exe[0m
+[0m[2mchecking for the linker (ld) ... [32;1mlink.exe[0m
+[0m[2m> checking for c links(zlib)[0m
+[0m[2m> checking for c snippet(find_package/zlib)[0m
+[0mchecking for zlib ... [31;1mno[0m
+[0mchecking for xmake::ixwebsocket ... [31;1mno[0m
+[0m[2m> checking for c links(ixwebsocket)[0m
+[0m[2m> checking for c snippet(find_package/ixwebsocket)[0m
+[0mchecking for ixwebsocket ... [31;1mno[0m
+[0m[1;33;1mnote: [0minstall or modify (m) these packages (pass -y to skip confirm)?[0m
+in xmake-repo:
+[0m  [33m->[0m zlib v1.3.2 [2m[runtimes:"MD", from:ixwebsocket, license:zlib][0m
+[0m  [33m->[0m ixwebsocket v11.4.6 [2m[runtimes:"MD", license:BSD-3-Clause][0m
+[0mplease input: [1my[0m (y/n/m)[0m

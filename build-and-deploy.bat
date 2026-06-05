@@ -10,6 +10,23 @@ echo   FalloutChat — Build and Deploy
 echo ========================================
 echo.
 
+set /p TARGET_VER="Build for Old-Gen (OG) or Next-Gen (NG)? [OG/NG]: "
+if /i "!TARGET_VER!"=="OG" (
+    set PRISMA_TARGET=og
+    echo Building for Old-Gen...
+) else (
+    set PRISMA_TARGET=ng
+    echo Building for Next-Gen...
+)
+echo.
+
+set /p DEPLOY_PATH="Enter deployment path: "
+
+rem Strip double quotes if the user dragged-and-dropped or typed them
+if defined DEPLOY_PATH set DEPLOY_PATH=!DEPLOY_PATH:"=!
+
+echo.
+
 echo Building TypeScript bundle...
 cd /d "%SCRIPT_DIR%assets\views"
 call npm run build
@@ -29,7 +46,7 @@ if not exist "%SCRIPT_DIR%assets\views\dist\chat-bundle.js" (
 
 echo.
 echo Building FalloutChat DLL...
-xmake f -c
+xmake f -c -y
 xmake
 if errorlevel 1 (
     echo ERROR: xmake build failed

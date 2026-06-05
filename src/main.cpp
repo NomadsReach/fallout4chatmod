@@ -25,41 +25,29 @@ void SaveUsername(const std::string& newName)
 void SavePrivacyPolicy()
 {
 	std::lock_guard<std::mutex> lock(g_iniMutex);
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.SetBoolValue("General", "privacy_accepted", true);
-	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.Reset();
 	g_privacyAccepted = true;
+	FalloutChat::UserID::GetSingleton().SetPrivacyAccepted(true);
 }
 
 void SaveChatEnabled(bool enabled)
 {
 	std::lock_guard<std::mutex> lock(g_iniMutex);
 	g_chatEnabled = enabled;
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.SetBoolValue("General", "chat_enabled", enabled);
-	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.Reset();
+	FalloutChat::UserID::GetSingleton().SetChatEnabled(enabled);
 }
 
 void SaveTutorialSeen()
 {
 	std::lock_guard<std::mutex> lock(g_iniMutex);
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.SetBoolValue("General", "tutorial_seen", true);
-	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.Reset();
 	g_tutorialSeen = true;
+	FalloutChat::UserID::GetSingleton().SetTutorialSeen(true);
 }
 
 void SaveIntroDismissed()
 {
 	std::lock_guard<std::mutex> lock(g_iniMutex);
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.SetBoolValue("General", "intro_dismissed", true);
-	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.Reset();
 	g_introDismissed = true;
+	FalloutChat::UserID::GetSingleton().SetIntroDismissed(true);
 }
 
 void SaveFontSize(int size)
@@ -70,10 +58,7 @@ void SaveFontSize(int size)
 	}
 	std::lock_guard<std::mutex> lock(g_iniMutex);
 	g_fontSize = size;
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.SetLongValue("General", "font_size", size);
-	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.Reset();
+	FalloutChat::UserID::GetSingleton().SetFontSize(size);
 }
 
 void SaveOpacity(int opacity)
@@ -84,34 +69,27 @@ void SaveOpacity(int opacity)
 	}
 	std::lock_guard<std::mutex> lock(g_iniMutex);
 	g_bgOpacity = opacity;
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.SetLongValue("General", "bg_opacity", opacity);
-	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.Reset();
+	FalloutChat::UserID::GetSingleton().SetBgOpacity(opacity);
 }
 
 void LoadConfigs()
 {
-	logger::info("LoadConfigs: reading FalloutChat.ini");
+	logger::info("LoadConfigs: reading preferences from UserID");
 	std::lock_guard<std::mutex> lock(g_iniMutex);
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 
 	// Server URL is hardcoded — not user-configurable to prevent redirection attacks
 	serverUrl = "wss://chat.fallenworld.nexus/ws";
-	// Username is now managed by UserID class (persisted in %APPDATA%\Local\FalloutChat\user_id.json)
+	// All user preferences are now persisted in %APPDATA%\Local\FalloutChat\user_id.json
+	// Default values will be used until UserID::Initialize() is called at kGameDataReady
 	username = "Player";
+	g_privacyAccepted = false;
+	g_chatEnabled = true;
+	g_tutorialSeen = false;
+	g_introDismissed = false;
+	g_fontSize = 14;
+	g_bgOpacity = 60;
 
-	bool privacyAlreadyAccepted = ini.GetBoolValue("General", "privacy_accepted", false);
-	g_privacyAccepted  = privacyAlreadyAccepted;
-	g_chatEnabled      = ini.GetBoolValue("General", "chat_enabled", true);
-	g_tutorialSeen     = ini.GetBoolValue("General", "tutorial_seen", false);
-	g_introDismissed   = ini.GetBoolValue("General", "intro_dismissed", privacyAlreadyAccepted);
-	g_fontSize         = (int)ini.GetLongValue("General", "font_size",  14);
-	g_bgOpacity        = (int)ini.GetLongValue("General", "bg_opacity", 60);
-	ini.Reset();
-
-	logger::info("LoadConfigs: url='{}' username='{}' privacy={} enabled={} tutorialSeen={} introDismissed={} fontSize={} opacity={}",
-		serverUrl, username, g_privacyAccepted, g_chatEnabled, g_tutorialSeen, g_introDismissed, g_fontSize, g_bgOpacity);
+	logger::info("LoadConfigs: defaults set, will sync from UserID at kGameDataReady");
 }
 
 
@@ -130,9 +108,20 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_f
 
 			FalloutChat::UserID::GetSingleton().Initialize();
 			auto& userID = FalloutChat::UserID::GetSingleton();
+
+			// Sync all persisted preferences from UserID into globals
 			std::string userIDValue = userID.GetID();
 			username = userID.GetUsername();
+			g_privacyAccepted = userID.GetPrivacyAccepted();
+			g_chatEnabled = userID.GetChatEnabled();
+			g_tutorialSeen = userID.GetTutorialSeen();
+			g_introDismissed = userID.GetIntroDismissed();
+			g_fontSize = userID.GetFontSize();
+			g_bgOpacity = userID.GetBgOpacity();
+
 			logger::info("F4SE: User ID: {} (username: {})", userIDValue, username);
+			logger::info("F4SE: Preferences: privacy={} chat_enabled={} tutorial_seen={} intro_dismissed={} font_size={} opacity={}",
+				g_privacyAccepted, g_chatEnabled, g_tutorialSeen, g_introDismissed, g_fontSize, g_bgOpacity);
 
 			FalloutChat::ChatClient::GetSingleton().Initialize(serverUrl, username, userIDValue);
 		} else if (msg->type == F4SE::MessagingInterface::kPostLoadGame) {

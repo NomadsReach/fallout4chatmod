@@ -69,6 +69,12 @@ namespace FalloutChat
 
             _id = data.value("id", "");
             _username = data.value("username", "Player");
+            _privacyAccepted = data.value("privacyAccepted", false);
+            _tutorialSeen = data.value("tutorialSeen", false);
+            _introDismissed = data.value("introDismissed", false);
+            _chatEnabled = data.value("chatEnabled", true);
+            _fontSize = data.value("fontSize", 14);
+            _bgOpacity = data.value("bgOpacity", 60);
 
             if (_id.empty()) {
                 spdlog::warn("UserID: ID file exists but ID is empty, regenerating");
@@ -89,6 +95,12 @@ namespace FalloutChat
     {
         _id = GenerateRandomID();
         _username = "Player";
+        _privacyAccepted = false;
+        _tutorialSeen = false;
+        _introDismissed = false;
+        _chatEnabled = true;
+        _fontSize = 14;
+        _bgOpacity = 60;
 
         SaveIDFile();
 
@@ -109,6 +121,12 @@ namespace FalloutChat
             nlohmann::json data;
             data["id"] = _id;
             data["username"] = _username;
+            data["privacyAccepted"] = _privacyAccepted;
+            data["tutorialSeen"] = _tutorialSeen;
+            data["introDismissed"] = _introDismissed;
+            data["chatEnabled"] = _chatEnabled;
+            data["fontSize"] = _fontSize;
+            data["bgOpacity"] = _bgOpacity;
             data["created"] = std::time(nullptr);  // Unix timestamp
 
             std::ofstream file(filePath);
@@ -163,5 +181,49 @@ namespace FalloutChat
         _id = GenerateRandomID();
         SaveIDFile();
         spdlog::warn("UserID: ID regenerated (was: {}, now: {})", oldID, _id);
+    }
+
+    void UserID::SetPrivacyAccepted(bool accepted)
+    {
+        _privacyAccepted = accepted;
+        SaveIDFile();
+    }
+
+    void UserID::SetTutorialSeen(bool seen)
+    {
+        _tutorialSeen = seen;
+        SaveIDFile();
+    }
+
+    void UserID::SetIntroDismissed(bool dismissed)
+    {
+        _introDismissed = dismissed;
+        SaveIDFile();
+    }
+
+    void UserID::SetChatEnabled(bool enabled)
+    {
+        _chatEnabled = enabled;
+        SaveIDFile();
+    }
+
+    void UserID::SetFontSize(int size)
+    {
+        if (size < 10 || size > 20) {
+            spdlog::warn("UserID: SetFontSize size {} out of range [10, 20], ignoring", size);
+            return;
+        }
+        _fontSize = size;
+        SaveIDFile();
+    }
+
+    void UserID::SetBgOpacity(int opacity)
+    {
+        if (opacity < 10 || opacity > 100) {
+            spdlog::warn("UserID: SetBgOpacity opacity {} out of range [10, 100], ignoring", opacity);
+            return;
+        }
+        _bgOpacity = opacity;
+        SaveIDFile();
     }
 }
