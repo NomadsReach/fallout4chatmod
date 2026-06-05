@@ -20,10 +20,6 @@ void SaveUsername(const std::string& newName)
 	std::lock_guard<std::mutex> lock(g_iniMutex);
 	username = newName;
 	FalloutChat::UserID::GetSingleton().SetUsername(newName);
-	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.SetValue("General", "username", newName.c_str());
-	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	ini.Reset();
 }
 
 void SavePrivacyPolicy()
@@ -102,10 +98,8 @@ void LoadConfigs()
 
 	// Server URL is hardcoded — not user-configurable to prevent redirection attacks
 	serverUrl = "wss://chat.fallenworld.nexus/ws";
-	username = ini.GetValue("General", "username", "");
-
-	if (username.empty())
-		username = "Player";
+	// Username is now managed by UserID class (persisted in %APPDATA%\Local\FalloutChat\user_id.json)
+	username = "Player";
 
 	bool privacyAlreadyAccepted = ini.GetBoolValue("General", "privacy_accepted", false);
 	g_privacyAccepted  = privacyAlreadyAccepted;
@@ -120,22 +114,7 @@ void LoadConfigs()
 		serverUrl, username, g_privacyAccepted, g_chatEnabled, g_tutorialSeen, g_introDismissed, g_fontSize, g_bgOpacity);
 }
 
-extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Query(const F4SE::QueryInterface* a_f4se, F4SE::PluginInfo* a_info)
-{
-	// OG F4SE calls this before Load; NG F4SE uses F4SEPlugin_Version instead.
-	// Keep minimal — no logging here (logger not yet initialized for OG path).
-	a_info->infoVersion = F4SE::PluginInfo::kVersion;
-	a_info->name        = "FalloutChat";
-	a_info->version     = Version::MAJOR;
 
-	if (a_f4se->IsEditor())
-		return false;
-
-	if (a_f4se->RuntimeVersion() < F4SE::RUNTIME_1_10_162)
-		return false;
-
-	return true;
-}
 
 extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_f4se)
 {
