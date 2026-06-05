@@ -522,22 +522,7 @@
   </div>
 </div>
 
-<script src="chat-bundle.js"></script>
-<script>
-  // Bundle loaded confirmation
-  if (typeof window.__chatStore !== 'undefined') {
-    console.log('FalloutChat: UI loaded from bundle successfully');
-  } else {
-    console.error('FalloutChat: Bundle failed to load - chat.bundle.js missing or errored');
-    // Fallback: show error overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);color:#f44;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:monospace;font-size:16px;text-align:center;';
-    overlay.textContent = 'FalloutChat: Bundle failed to load. Restart the game.';
-    document.body.appendChild(overlay);
-  }
-</script>
-
-<!-- Fallback for development (if bundle is missing): -->
+<!-- Fallback (inline only, no bundle dependency): -->
 <script>
   if (typeof window.__chatStore === 'undefined') {
     console.warn('FalloutChat: TypeScript bundle not loaded');
@@ -1033,32 +1018,6 @@
     dot.classList.remove('disconnected', 'reconnecting');
     if (state === 'disconnected') dot.classList.add('disconnected');
     else if (state === 'reconnecting') dot.classList.add('reconnecting');
-  }
-
-  // ── Tabs ──────────────────────────────────────────────────────────────────
-  var g_currentTab = 'chat';
-
-  function switchTab(tab) {
-    g_currentTab = tab;
-    var chatList = document.getElementById('messagesList');
-    var supportList = document.getElementById('supportList');
-    var tabChatBtn = document.getElementById('tabChat');
-    var tabSupportBtn = document.getElementById('tabSupport');
-
-    if (tab === 'chat') {
-      chatList.style.display = 'flex';
-      supportList.style.display = 'none';
-      tabChatBtn.classList.add('active');
-      tabSupportBtn.classList.remove('active');
-      chatList.scrollTop = chatList.scrollHeight;
-    } else {
-      chatList.style.display = 'none';
-      supportList.style.display = 'flex';
-      tabChatBtn.classList.remove('active');
-      tabSupportBtn.classList.add('active');
-      supportList.scrollTop = supportList.scrollHeight;
-    }
-    console.log('UI: switched to ' + tab + ' tab');
   }
 
   // ── Character counter ─────────────────────────────────────────────────────
