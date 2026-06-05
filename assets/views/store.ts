@@ -1,6 +1,18 @@
 // FalloutChat State Store
 // All state lives here, window functions registered at module load time
 
+declare global {
+  interface Window {
+    setupOnboarding: (intro: boolean, priv: boolean, tut: boolean) => void;
+    SetUsernameInput: (name: string) => void;
+    onChatOpened: () => void;
+    onChatClosed: () => void;
+    setChatEnabled: (enabled: boolean) => void;
+    markHistoryDone: () => void;
+    __chatStore?: any;
+  }
+}
+
 interface ChatMessage {
   sender: string;
   text: string;

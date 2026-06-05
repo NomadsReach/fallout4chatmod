@@ -360,8 +360,9 @@ function showToast(sender: string, text: string, isEmote: boolean, isMention: bo
   if (document.body.classList.contains('chat-active')) return;
 
   store.queueToast(sender, text, isEmote, isMention);
-  console.log(`[Toast] queued "${sender}" (queue=${state.toastQueue.length})`);
-  if (!state.toastBusy) processToastQueue();
+  const updatedState = store.getState();
+  console.log(`[Toast] queued "${sender}" (queue=${updatedState.toastQueue.length})`);
+  if (!updatedState.toastBusy) processToastQueue();
 }
 
 function processToastQueue(): void {
@@ -445,8 +446,8 @@ function receiveMessage(sender: string, text: string, timestamp: string, isEmote
 
     const state = store.getState();
     const isSystem = String(sender).toUpperCase() === 'SYSTEM';
-    const isMention = !isSystem && state.localUsername &&
-      String(text).toLowerCase().includes(state.localUsername.toLowerCase());
+    const isMention = (!isSystem && state.localUsername &&
+      String(text).toLowerCase().includes(state.localUsername.toLowerCase())) as boolean;
 
     if (isEmote) {
       row.className = 'msg-row emote' + (isMention ? ' mention' : '');
@@ -528,6 +529,8 @@ function handleInput(e: KeyboardEvent): void {
 
   if (val.length > 500) {
     addSystemMessage('Message too long (max 500 characters).');
+    input.value = '';
+    updateCharCount(input);
     e.preventDefault();
     return;
   }

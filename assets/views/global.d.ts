@@ -1,8 +1,6 @@
 // Global type declarations for F4SE-injected functions
 // These are called from C++ and made available to JavaScript
 
-export {};
-
 declare global {
   interface Window {
     // ── F4SE Plugin Communication ──────────────────────────────────────

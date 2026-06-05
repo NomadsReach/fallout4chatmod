@@ -17,9 +17,9 @@ int g_bgOpacity = 60;
 
 void SaveUsername(const std::string& newName)
 {
+	std::lock_guard<std::mutex> lock(g_iniMutex);
 	username = newName;
 	FalloutChat::UserID::GetSingleton().SetUsername(newName);
-	std::lock_guard<std::mutex> lock(g_iniMutex);
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetValue("General", "username", newName.c_str());
 	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
@@ -32,14 +32,14 @@ void SavePrivacyPolicy()
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetBoolValue("General", "privacy_accepted", true);
 	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	g_privacyAccepted = true;
 	ini.Reset();
+	g_privacyAccepted = true;
 }
 
 void SaveChatEnabled(bool enabled)
 {
-	g_chatEnabled = enabled;
 	std::lock_guard<std::mutex> lock(g_iniMutex);
+	g_chatEnabled = enabled;
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetBoolValue("General", "chat_enabled", enabled);
 	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
@@ -52,8 +52,8 @@ void SaveTutorialSeen()
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetBoolValue("General", "tutorial_seen", true);
 	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	g_tutorialSeen = true;
 	ini.Reset();
+	g_tutorialSeen = true;
 }
 
 void SaveIntroDismissed()
@@ -62,14 +62,18 @@ void SaveIntroDismissed()
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetBoolValue("General", "intro_dismissed", true);
 	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
-	g_introDismissed = true;
 	ini.Reset();
+	g_introDismissed = true;
 }
 
 void SaveFontSize(int size)
 {
-	g_fontSize = size;
+	if (size < 10 || size > 20) {
+		logger::warn("SaveFontSize: size {} out of range [10, 20], ignoring", size);
+		return;
+	}
 	std::lock_guard<std::mutex> lock(g_iniMutex);
+	g_fontSize = size;
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetLongValue("General", "font_size", size);
 	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
@@ -78,8 +82,12 @@ void SaveFontSize(int size)
 
 void SaveOpacity(int opacity)
 {
-	g_bgOpacity = opacity;
+	if (opacity < 10 || opacity > 100) {
+		logger::warn("SaveOpacity: opacity {} out of range [10, 100], ignoring", opacity);
+		return;
+	}
 	std::lock_guard<std::mutex> lock(g_iniMutex);
+	g_bgOpacity = opacity;
 	ini.LoadFile("Data\\F4SE\\Plugins\\FalloutChat.ini");
 	ini.SetLongValue("General", "bg_opacity", opacity);
 	ini.SaveFile("Data\\F4SE\\Plugins\\FalloutChat.ini");

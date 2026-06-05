@@ -319,12 +319,33 @@ namespace FalloutChat
 			logger::info("ChatUI: dispatching {} message(s) to UI", msgs.size());
 			std::string batch_js = "";
 			for (const auto& m : msgs) {
-				logger::info("ChatUI: render msg sender='{}' time='{}' emote={}", m.sender, m.timestamp, m.isEmote);
+				std::string msgText = m.text;
+				std::string tabName = "chat";
+				bool isEmote = m.isEmote;
+
+				// Check for [SUPPORT] prefix to route to support tab
+				if (msgText.rfind("[SUPPORT]", 0) == 0) {
+					msgText = msgText.substr(9);  // Remove [SUPPORT] prefix
+					tabName = "support";
+
+					// If server didn't format /me as emote, detect and handle locally
+					if (!isEmote && msgText.rfind("/me ", 0) == 0) {
+						msgText = msgText.substr(4);  // Remove "/me " prefix
+						isEmote = true;
+						logger::info("ChatUI: detected /me emote from support tab, sender='{}'", m.sender);
+					} else {
+						logger::info("ChatUI: support message from '{}' at {}", m.sender, m.timestamp);
+					}
+				} else {
+					logger::info("ChatUI: render msg sender='{}' time='{}' emote={}", m.sender, m.timestamp, m.isEmote);
+				}
+
 				batch_js += "receiveMessage(\""
 					+ EscapeJS(m.sender) + "\", \""
-					+ EscapeJS(m.text)   + "\", \""
+					+ EscapeJS(msgText)   + "\", \""
 					+ EscapeJS(m.timestamp) + "\", "
-					+ (m.isEmote ? "true" : "false") + ");\n";
+					+ (isEmote ? "true" : "false") + ", \""
+					+ tabName + "\");\n";
 			}
 			if (!batch_js.empty()) {
 				g_api->Invoke(g_view, batch_js.c_str());
@@ -341,7 +362,7 @@ namespace FalloutChat
 		void UpdateConnectionStatus(bool connected)
 		{
 			if (!g_api || !g_api->IsValid(g_view)) return;
-			const char* state = connected ? "connected" : "reconnecting";
+			const char* state = connected ? "connected" : "disconnected";
 			logger::info("ChatUI: connection status → {}", state);
 			g_api->Invoke(g_view, (std::string("if(window.updateConnectionStatus) updateConnectionStatus('") + state + "');").c_str());
 		}

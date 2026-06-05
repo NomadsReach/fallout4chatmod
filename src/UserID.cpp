@@ -112,9 +112,19 @@ namespace FalloutChat
             data["created"] = std::time(nullptr);  // Unix timestamp
 
             std::ofstream file(filePath);
-            file << data.dump(2);  // Pretty-print with 2-space indent
-            file.close();
+            if (!file.is_open()) {
+                spdlog::error("UserID: Failed to open file for writing: {}", filePath);
+                return;
+            }
 
+            file << data.dump(2);  // Pretty-print with 2-space indent
+            if (!file.good()) {
+                spdlog::error("UserID: Write failed for file: {}", filePath);
+                file.close();
+                return;
+            }
+
+            file.close();
             spdlog::info("UserID: Saved ID file to {}", filePath);
         }
         catch (const std::exception& e) {
