@@ -84,10 +84,6 @@ add_requires("fmt", "ixwebsocket", "nlohmann_json")
                 if os.isfile(bundle) then
                     os.cp(bundle, views)
                 end
-                local ini = path.join(os.scriptdir(), "FalloutChat.ini")
-                if not os.isfile(path.join(plugins, "FalloutChat.ini")) then
-                    os.cp(ini, plugins)
-                end
                 cprint("${bright green}deploy:${clear} %s", base)
             end
         end
