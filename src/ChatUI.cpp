@@ -241,7 +241,7 @@ namespace FalloutChat
 				g_view = 0;
 			}
 
-			g_view = g_api->CreateView("chat.html", OnDomReady);
+			g_view = g_api->CreateView("Interface/FalloutChat/chat.html", OnDomReady);
 			logger::info("ChatUI: view created ({})", g_view);
 
 			g_api->RegisterConsoleCallback(g_view, [](PrismaView, PRISMA_UI_API::ConsoleMessageLevel level, const char* msg) {
