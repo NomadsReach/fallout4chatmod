@@ -284,6 +284,12 @@ Bun.serve({
   },
 
   websocket: {
+    // Players sit idle between messages; the default 120s idle timeout would
+    // silently drop them and make the live count plateau. Keep sockets warm
+    // with server-sent pings and a long idle window.
+    idleTimeout: 300,   // seconds (Bun max is 960)
+    sendPings: true,
+
     open(ws) {
       if (clients.size >= MAX_CLIENTS) {
         console.warn(`[reject] connection limit reached (${MAX_CLIENTS})`);
@@ -424,4 +430,14 @@ Bun.serve({
 
 loadBans();
 loadBlockedNames();
-console.log(`FalloutChat server  port=${PORT}  max_history=${MAX_HISTORY}`);
+
+// Heartbeat: re-broadcast the count (covers any missed close events) and log
+// the true connection count so a plateau can be confirmed server-side.
+setInterval(() => {
+  let trusted = 0;
+  for (const ws of clients) if (trustedClients.has(ws)) trusted++;
+  console.log(`[stat] clients=${clients.size} (bots=${trusted}, players=${clients.size - trusted})`);
+  broadcastCount();
+}, 30000);
+
+console.log(`FalloutChat server  port=${PORT}  max_history=${MAX_HISTORY}  max_clients=${MAX_CLIENTS}`);
