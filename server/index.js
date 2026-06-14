@@ -95,19 +95,28 @@ const BLOCKED_NAMES_FILE = process.env.BLOCKED_NAMES_FILE || path.join(__dirname
 
 const seedBlockedNames = [
   // Extremist / hate
-  'hitler', 'hilter', 'adolf', 'nazi', 'fuhrer', 'heil', 'sieg', 'reich',
-  'kkk', 'whitepower', 'holocaust', 'genocide', 'isis', 'jihad',
+  'hitler', 'hilter', 'adolf', 'adolph', 'nazi', 'naszi', 'fuhrer', 'fuehrer',
+  'heil', 'sieg', 'reich', 'thirdreich', 'gestapo', 'wehrmacht', 'aryan',
+  'kkk', 'kukluxklan', 'whitepower', 'whitepride', 'bloodandsoil',
+  'holocaust', 'holohoax', 'genocide', 'isis', 'jihad', 'taliban', 'alqaeda',
+  'fascist', 'goebbels', 'himmler', 'auschwitz', 'swastika', 'lynch',
   // Racial / ethnic slurs
-  'nigger', 'nigga', 'chink', 'spic', 'kike', 'gook', 'wetback', 'beaner',
-  'coon', 'jigaboo', 'paki', 'raghead', 'towelhead', 'sandnigger', 'gypsy',
+  'nigger', 'nigga', 'niglet', 'negro', 'chink', 'chinky', 'spic', 'kike',
+  'gook', 'wetback', 'beaner', 'coon', 'jigaboo', 'porchmonkey', 'paki',
+  'raghead', 'towelhead', 'sandnigger', 'gypsy', 'wop', 'dago', 'cracker',
+  'honky', 'redskin', 'injun', 'spook', 'tarbaby', 'zipperhead', 'slant',
   // Homophobic / transphobic slurs
-  'faggot', 'dyke', 'tranny', 'shemale',
+  'faggot', 'faggit', 'fagot', 'dyke', 'tranny', 'trannie', 'shemale',
+  'homo', 'queer', 'sodomite',
   // Ableist
-  'retard', 'spastic',
+  'retard', 'retarded', 'spastic', 'spaz', 'mongoloid', 'cripple',
   // Sexual / explicit
-  'rape', 'rapist', 'pedo', 'pedophile', 'molester', 'cunt', 'whore',
+  'rape', 'rapist', 'pedo', 'pedophile', 'paedophile', 'molester', 'cunt',
+  'whore', 'slut', 'dildo', 'penis', 'vagina', 'pussy',
+  'porn', 'incest', 'bestiality', 'jizz', 'fuck', 'shit', 'bitch', 'bastard',
   // Impersonation / authority
-  'president', 'admin', 'moderator', 'server', 'system', 'discord',
+  'president', 'admin', 'administrator', 'moderator', 'staff', 'official',
+  'server', 'system', 'discord', 'owner', 'developer',
 ];
 
 const blockedNames = new Set(seedBlockedNames.map(normalizeName).filter(Boolean));
