@@ -54,12 +54,23 @@ function saveBans() {
   }
 }
 
+// Reason text delivered as a plain "sender: text" chat line so that even old
+// client builds (which understand no custom frames) can display it.
+const BAN_NOTICE = 'Server: You are banned from FalloutChat. Contact a moderator if you believe this is a mistake.';
+
+// Tell a client why it is being kicked, then close. The close is deferred a
+// moment so the notice frame flushes before the close frame.
+function notifyBanThenClose(ws) {
+  try { ws.send(BAN_NOTICE); } catch { /* socket already gone */ }
+  setTimeout(() => { try { ws.close(4000, 'Banned'); } catch { /* already closing */ } }, 300);
+}
+
 // Disconnect every connected client matching a freshly-banned id.
 function kickBanned(userId) {
   let kicked = 0;
   for (const ws of clients) {
     if (ws.data && ws.data.userId === userId) {
-      try { ws.close(4000, 'Banned'); } catch { /* already closing */ }
+      notifyBanThenClose(ws);
       kicked++;
     }
   }
@@ -339,7 +350,7 @@ Bun.serve({
       // Check if user is banned by their ID
       if (bannedUserIDs.has(userId)) {
         console.warn(`[ban] banned user ${userId} attempted to send message`);
-        ws.close(4000, 'Banned');
+        notifyBanThenClose(ws);
         return;
       }
 
@@ -361,7 +372,7 @@ Bun.serve({
           const last = ws.data.lastNameNotice || 0;
           if (Date.now() - last > 30000) {
             ws.data.lastNameNotice = Date.now();
-            ws.send('Server: Your username is not allowed. Change it in Settings to chat.');
+            ws.send('Server: Your username is banned and your messages are hidden. Change your name in Settings to chat.');
           }
           return;
         }
