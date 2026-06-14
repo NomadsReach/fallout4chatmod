@@ -50,5 +50,11 @@ CLAUDE.md
 # Environment secrets — never commit
 .env
 
+# Runtime moderation state (persisted ban list)
+server/data/
+data/
+bans.json
+blocked_names.json
+
 # Backup files
 *.bak

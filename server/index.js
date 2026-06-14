@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const PORT           = parseInt(process.env.PORT           || '3000', 10);
 const MAX_HISTORY    = parseInt(process.env.MAX_HISTORY    || '50',   10);
 const MAX_CLIENTS    = parseInt(process.env.MAX_CLIENTS    || '200',  10);
@@ -7,14 +10,139 @@ const MAX_MSG_LEN    = 600;
 const MAX_USERNAME_LEN = 32;
 const RATE_LIMIT_MS  = 500;
 const BOT_SECRET     = process.env.BOT_SECRET || '';
+const BANS_FILE      = process.env.BANS_FILE  || path.join(__dirname, 'bans.json');
+
+// Game UserIDs (hex64) exempt from the username filter — admins may use any
+// name. Find an id with the bot's !whois command, then list it here.
+const ADMIN_USER_IDS = new Set(
+  (process.env.ADMIN_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean)
+);
 
 const trustedClients = new WeakSet(); // authenticated bot connections
 
-// Banned user IDs (hex64 format: "a1b2c3d4e5f6g7h8")
-const bannedUserIDs = [
-  // Add banned user IDs here
+// Delimiter used only on the trusted bot relay channel: "[REL]<userId>\x02<formatted>"
+const REL_DELIM = '\x02';
+
+// ── Ban list ────────────────────────────────────────────────────────────────
+// Persisted to BANS_FILE so bans survive restarts. Seed any always-banned IDs
+// here; runtime bans (added via the Discord bot) are merged on load.
+const seedBans = [
+  // 'a1b2c3d4e5f6g7h8',
 ];
 
+const bannedUserIDs = new Set(seedBans);
+
+function loadBans() {
+  try {
+    if (fs.existsSync(BANS_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(BANS_FILE, 'utf8'));
+      if (Array.isArray(raw)) {
+        for (const id of raw) if (id) bannedUserIDs.add(String(id));
+      }
+    }
+  } catch (err) {
+    console.error(`[bans] failed to load ${BANS_FILE}: ${err.message}`);
+  }
+  console.log(`[bans] loaded ${bannedUserIDs.size} banned id(s) from ${BANS_FILE}`);
+}
+
+function saveBans() {
+  try {
+    fs.writeFileSync(BANS_FILE, JSON.stringify([...bannedUserIDs], null, 2));
+  } catch (err) {
+    console.error(`[bans] failed to save ${BANS_FILE}: ${err.message}`);
+  }
+}
+
+// Disconnect every connected client matching a freshly-banned id.
+function kickBanned(userId) {
+  let kicked = 0;
+  for (const ws of clients) {
+    if (ws.data && ws.data.userId === userId) {
+      try { ws.close(4000, 'Banned'); } catch { /* already closing */ }
+      kicked++;
+    }
+  }
+  return kicked;
+}
+
+// ── Blocked usernames ─────────────────────────────────────────────────────
+// A display name is rejected if its normalized form CONTAINS any blocked term.
+// Normalization folds case, diacritics and common leetspeak so "H1tler",
+// "Hîtler" and "h.i.t.l.e.r" all collapse to "hitler". Because names are
+// deliberately misspelled (e.g. "Hilter"), seed the obvious variants too and
+// extend the list at runtime with !blockname.
+const BLOCKED_NAMES_FILE = process.env.BLOCKED_NAMES_FILE || path.join(__dirname, 'blocked_names.json');
+
+const seedBlockedNames = [
+  // Extremist / hate
+  'hitler', 'hilter', 'adolf', 'nazi', 'fuhrer', 'heil', 'sieg', 'reich',
+  'kkk', 'whitepower', 'holocaust', 'genocide', 'isis', 'jihad',
+  // Racial / ethnic slurs
+  'nigger', 'nigga', 'chink', 'spic', 'kike', 'gook', 'wetback', 'beaner',
+  'coon', 'jigaboo', 'paki', 'raghead', 'towelhead', 'sandnigger', 'gypsy',
+  // Homophobic / transphobic slurs
+  'faggot', 'dyke', 'tranny', 'shemale',
+  // Ableist
+  'retard', 'spastic',
+  // Sexual / explicit
+  'rape', 'rapist', 'pedo', 'pedophile', 'molester', 'cunt', 'whore',
+  // Impersonation / authority
+  'president', 'admin', 'moderator', 'server', 'system', 'discord',
+];
+
+const blockedNames = new Set(seedBlockedNames.map(normalizeName).filter(Boolean));
+
+// Collapse a name to comparable letters: lowercase, strip diacritics, fold
+// common leet substitutions, then drop everything that isn't a–z.
+function normalizeName(s) {
+  return String(s)
+    .toLowerCase()
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '') // strip diacritics
+    .replace(/[1!|]/g, 'i')
+    .replace(/3/g, 'e')
+    .replace(/4/g, 'a').replace(/@/g, 'a')
+    .replace(/0/g, 'o')
+    .replace(/5/g, 's').replace(/\$/g, 's')
+    .replace(/7/g, 't')
+    .replace(/[^a-z]/g, '');
+}
+
+function matchedBlockedTerm(name) {
+  const norm = normalizeName(name);
+  if (!norm) return null;
+  for (const term of blockedNames) {
+    if (term && norm.includes(term)) return term;
+  }
+  return null;
+}
+
+function loadBlockedNames() {
+  try {
+    if (fs.existsSync(BLOCKED_NAMES_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(BLOCKED_NAMES_FILE, 'utf8'));
+      if (Array.isArray(raw)) {
+        for (const term of raw) {
+          const n = normalizeName(term);
+          if (n) blockedNames.add(n);
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[names] failed to load ${BLOCKED_NAMES_FILE}: ${err.message}`);
+  }
+  console.log(`[names] ${blockedNames.size} blocked name term(s) from ${BLOCKED_NAMES_FILE}`);
+}
+
+function saveBlockedNames() {
+  try {
+    fs.writeFileSync(BLOCKED_NAMES_FILE, JSON.stringify([...blockedNames], null, 2));
+  } catch (err) {
+    console.error(`[names] failed to save ${BLOCKED_NAMES_FILE}: ${err.message}`);
+  }
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
 // { ts: 'HH:MM:SS', raw: '<broadcast string>' }
 const history = [];
 const clients = new Set();
@@ -52,11 +180,79 @@ function broadcastCount() {
   for (const ws of clients) ws.send(msg);
 }
 
+// Broadcast a formatted line to everyone except the sender. Trusted bot
+// connections additionally receive the sender's userId so they can moderate.
+function broadcastMessage(formatted, senderWs, senderUserId) {
+  for (const client of clients) {
+    if (client === senderWs) continue;
+    if (trustedClients.has(client)) {
+      client.send(`[REL]${senderUserId}${REL_DELIM}${formatted}`);
+    } else {
+      client.send(formatted);
+    }
+  }
+}
+
 // Per-connection rate-limit state stored on the ws object
 function isRateLimited(ws) {
   const now = Date.now();
   if (ws.data.lastMsg && (now - ws.data.lastMsg) < RATE_LIMIT_MS) return true;
   ws.data.lastMsg = now;
+  return false;
+}
+
+// Handle moderation control frames from a trusted bot. Returns true if handled.
+function handleControl(ws, msg) {
+  if (!trustedClients.has(ws)) return false;
+
+  if (msg.startsWith('[BAN]')) {
+    const id = sanitize(msg.slice(5));
+    if (!id) { ws.send('[BANERR]empty id'); return true; }
+    bannedUserIDs.add(id);
+    saveBans();
+    const kicked = kickBanned(id);
+    console.log(`[ban] added ${id} (kicked ${kicked} active connection(s))`);
+    ws.send(`[BANOK]banned ${id} (kicked ${kicked})`);
+    return true;
+  }
+
+  if (msg.startsWith('[UNBAN]')) {
+    const id = sanitize(msg.slice(7));
+    const existed = bannedUserIDs.delete(id);
+    if (existed) saveBans();
+    console.log(`[ban] removed ${id} (was banned: ${existed})`);
+    ws.send(existed ? `[BANOK]unbanned ${id}` : `[BANERR]${id} was not banned`);
+    return true;
+  }
+
+  if (msg.startsWith('[BANLIST]')) {
+    ws.send(`[BANLIST]${[...bannedUserIDs].join(',')}`);
+    return true;
+  }
+
+  if (msg.startsWith('[BLOCKNAME]')) {
+    const term = normalizeName(msg.slice(11));
+    if (!term) { ws.send('[BANERR]name term is empty after normalization'); return true; }
+    blockedNames.add(term);
+    saveBlockedNames();
+    console.log(`[name] blocked term added: "${term}"`);
+    ws.send(`[BANOK]blocked name term "${term}"`);
+    return true;
+  }
+
+  if (msg.startsWith('[UNBLOCKNAME]')) {
+    const term = normalizeName(msg.slice(13));
+    const existed = blockedNames.delete(term);
+    if (existed) saveBlockedNames();
+    ws.send(existed ? `[BANOK]unblocked name term "${term}"` : `[BANERR]"${term}" was not blocked`);
+    return true;
+  }
+
+  if (msg.startsWith('[BLOCKEDNAMES]')) {
+    ws.send(`[BLOCKEDNAMES]${[...blockedNames].join(',')}`);
+    return true;
+  }
+
   return false;
 }
 
@@ -92,6 +288,9 @@ Bun.serve({
         console.log('[bot] authenticated');
         return;
       }
+
+      // 0b. Moderation control frames (trusted bot only)
+      if (handleControl(ws, String(data))) return;
 
       // 1. Length cap
       if (data.length > MAX_MSG_LEN) {
@@ -134,8 +333,11 @@ Bun.serve({
       const userId = sanitize(parts[0] ?? '');
       const rawName = sanitize(parts[1] ?? 'Player').slice(0, MAX_USERNAME_LEN);
 
+      // Remember which id this connection belongs to (so future bans can kick it)
+      ws.data.userId = userId;
+
       // Check if user is banned by their ID
-      if (bannedUserIDs.includes(userId)) {
+      if (bannedUserIDs.has(userId)) {
         console.warn(`[ban] banned user ${userId} attempted to send message`);
         ws.close(4000, 'Banned');
         return;
@@ -148,23 +350,37 @@ Bun.serve({
         : (stripSpoofedPrefixes(rawName) || 'Player');
       const display = username;
 
+      // Reject blocked display names (game clients only; Discord names are
+      // moderated on Discord; admin UserIDs are exempt). Drop the message and
+      // privately tell the sender, throttled so a misnamed client can't be
+      // spammed/spam the log.
+      if (!trustedClients.has(ws) && !ADMIN_USER_IDS.has(userId)) {
+        const term = matchedBlockedTerm(display);
+        if (term) {
+          console.warn(`[name] blocked "${display}" (matched "${term}") from ${userId}`);
+          const last = ws.data.lastNameNotice || 0;
+          if (Date.now() - last > 30000) {
+            ws.data.lastNameNotice = Date.now();
+            ws.send('Server: Your username is not allowed. Change it in Settings to chat.');
+          }
+          return;
+        }
+      }
+
       let formatted;
       if (text.startsWith('/me ')) {
         const action = sanitize(text.slice(4));
         if (!action) return;
         formatted = `[EMOTE]${display}\x01${action}`;
         const d = formatted.indexOf('\x01');
-        console.log(`[emote] * ${formatted.slice(7, d)} ${formatted.slice(d + 1)}`);
+        console.log(`[emote] (${userId}) * ${formatted.slice(7, d)} ${formatted.slice(d + 1)}`);
       } else {
         formatted = `${display}: ${text}`;
-        console.log(`[chat]  ${display}: ${text}`);
+        console.log(`[chat]  (${userId}) ${display}: ${text}`);
       }
 
       addHistory(formatted);
-
-      for (const client of clients) {
-        if (client !== ws) client.send(formatted);
-      }
+      broadcastMessage(formatted, ws, userId);
     },
 
     close(ws) {
@@ -180,4 +396,6 @@ Bun.serve({
   },
 });
 
+loadBans();
+loadBlockedNames();
 console.log(`FalloutChat server  port=${PORT}  max_history=${MAX_HISTORY}`);
