@@ -323,6 +323,13 @@ namespace FalloutChat
 				std::string tabName = "chat";
 				bool isEmote = m.isEmote;
 
+				// Server advisory — render as a styled system row, no sender/mention logic.
+				if (m.isSystem) {
+					logger::info("ChatUI: system notice → '{}'", msgText);
+					batch_js += "addSystemMessage(\"" + EscapeJS(msgText) + "\", \"chat\");\n";
+					continue;
+				}
+
 				// Check for [SUPPORT] prefix to route to support tab
 				if (msgText.rfind("[SUPPORT]", 0) == 0) {
 					msgText = msgText.substr(9);  // Remove [SUPPORT] prefix

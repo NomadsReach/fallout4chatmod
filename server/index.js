@@ -54,14 +54,22 @@ function saveBans() {
   }
 }
 
-// Reason text delivered as a plain "sender: text" chat line so that even old
-// client builds (which understand no custom frames) can display it.
-const BAN_NOTICE = 'Server: You are banned from FalloutChat. Contact a moderator if you believe this is a mistake.';
+const BAN_NOTICE = 'You are banned from FalloutChat. Contact a moderator if you believe this is a mistake.';
+
+// Deliver an advisory line to one client. Newer clients announce support via
+// [HELLO] and receive a styled [SYSTEM] frame; older builds, which understand
+// no custom frames, get a plain "Server: text" chat line they can still show.
+function sendNotice(ws, text) {
+  try {
+    if (ws.data && ws.data.supportsSystem) ws.send(`[SYSTEM]${text}`);
+    else ws.send(`Server: ${text}`);
+  } catch { /* socket already gone */ }
+}
 
 // Tell a client why it is being kicked, then close. The close is deferred a
 // moment so the notice frame flushes before the close frame.
 function notifyBanThenClose(ws) {
-  try { ws.send(BAN_NOTICE); } catch { /* socket already gone */ }
+  sendNotice(ws, BAN_NOTICE);
   setTimeout(() => { try { ws.close(4000, 'Banned'); } catch { /* already closing */ } }, 300);
 }
 
@@ -300,6 +308,13 @@ Bun.serve({
         return;
       }
 
+      // 0a. Capability handshake — client announces it can render [SYSTEM]
+      // frames. Old clients never send this, so they fall back to plain lines.
+      if (String(data).startsWith('[HELLO]')) {
+        ws.data.supportsSystem = true;
+        return;
+      }
+
       // 0b. Moderation control frames (trusted bot only)
       if (handleControl(ws, String(data))) return;
 
@@ -372,7 +387,7 @@ Bun.serve({
           const last = ws.data.lastNameNotice || 0;
           if (Date.now() - last > 30000) {
             ws.data.lastNameNotice = Date.now();
-            ws.send('Server: Your username is banned and your messages are hidden. Change your name in Settings to chat.');
+            sendNotice(ws, 'Your username is banned and your messages are hidden. Change your name in Settings to chat.');
           }
           return;
         }

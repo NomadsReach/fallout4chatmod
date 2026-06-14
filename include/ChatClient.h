@@ -14,6 +14,7 @@ namespace FalloutChat
 		std::string text;
 		std::string timestamp;
 		bool isEmote{ false };
+		bool isSystem{ false };
 	};
 
 	class ChatClient

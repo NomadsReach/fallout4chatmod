@@ -107,6 +107,24 @@ namespace FalloutChat
 						} else {
 							logger::warn("ChatClient: malformed HISTORY payload — no pipe separator");
 						}
+					} else if (payload.rfind("[SYSTEM]", 0) == 0) {
+						// Server advisory (ban/blocked-name notices). Styled as a system row.
+						ChatMessage sysMsg;
+						sysMsg.sender   = "System";
+						sysMsg.text     = payload.substr(8);
+						sysMsg.isSystem = true;
+
+						auto now = std::chrono::system_clock::now();
+						auto time_t_now = std::chrono::system_clock::to_time_t(now);
+						std::tm tm_now;
+						localtime_s(&tm_now, &time_t_now);
+						std::ostringstream oss;
+						oss << std::put_time(&tm_now, "%H:%M:%S");
+						sysMsg.timestamp = oss.str();
+
+						logger::info("ChatClient: system notice: {}", sysMsg.text);
+						_messageQueue.push_back(sysMsg);
+						gotMessage = true;
 					} else {
 						ChatMessage chatMsg;
 
@@ -158,6 +176,9 @@ namespace FalloutChat
 					std::lock_guard<std::mutex> lock(_mutex);
 					_connected = true;
 					connectedUrl = _url;
+					// Announce [SYSTEM] frame support so the server sends styled
+					// advisories instead of plain "Server:" chat lines.
+					if (_webSocket) _webSocket->send("[HELLO]2");
 				}
 				logger::info("ChatClient: connected to {}", connectedUrl);
 				if (auto* ti = F4SE::GetTaskInterface())
